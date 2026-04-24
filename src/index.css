@@ -195,6 +195,7 @@ tr:hover td { background: var(--surface2); }
   th, td { padding: 8px 10px !important; }
   .modal { padding: 20px !important; }
   .tbl-wrap { overflow-x: auto; }
+  .overview-cards { grid-template-columns: 1fr !important; }
 }
 
 @media (min-width: 769px) {

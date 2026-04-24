@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LayoutDashboard, QrCode, MapPin, Users, ClipboardList, BarChart2, UserCog, LogOut } from 'lucide-react';
+import { LayoutDashboard, QrCode, MapPin, Users, ClipboardList, BarChart2, UserCog, LogOut, CalendarDays, IndianRupee, Building2 } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { useAuth } from '../context/AuthContext';
 import Overview from './dashboard/Overview';
@@ -10,6 +10,9 @@ import Offices from './dashboard/Offices';
 import AttendanceLog from './dashboard/AttendanceLog';
 import Reports from './dashboard/Reports';
 import SuperAdminPanel from './dashboard/SuperAdminPanel';
+import Holidays from './dashboard/Holidays';
+import Salary from './dashboard/Salary';
+import OfficeWise from './dashboard/OfficeWise';
 
 export default function Dashboard() {
   const { auth, logout } = useAuth();
@@ -23,12 +26,15 @@ export default function Dashboard() {
         { id: 'admins',   label: 'Admins',   icon: <UserCog size={18} /> },
       ]
     : [
-        { id: 'overview',   label: 'Overview',   icon: <LayoutDashboard size={18} /> },
-        { id: 'qrcode',     label: 'QR Code',    icon: <QrCode size={18} /> },
-        { id: 'offices',    label: 'Offices',    icon: <MapPin size={18} /> },
-        { id: 'employees',  label: 'Employees',  icon: <Users size={18} /> },
-        { id: 'attendance', label: 'Attendance', icon: <ClipboardList size={18} /> },
-        { id: 'reports',    label: 'Reports',    icon: <BarChart2 size={18} /> },
+        { id: 'overview',   label: 'Overview',    icon: <LayoutDashboard size={18} /> },
+        { id: 'qrcode',     label: 'QR Code',     icon: <QrCode size={18} /> },
+        { id: 'offices',    label: 'Offices',     icon: <MapPin size={18} /> },
+        { id: 'employees',  label: 'Employees',   icon: <Users size={18} /> },
+        { id: 'attendance', label: 'Attendance',  icon: <ClipboardList size={18} /> },
+        { id: 'reports',    label: 'Reports',     icon: <BarChart2 size={18} /> },
+        { id: 'holidays',   label: 'Holidays',    icon: <CalendarDays size={18} /> },
+        { id: 'salary',     label: 'Salary',      icon: <IndianRupee size={18} /> },
+        { id: 'officewise', label: 'Office Wise', icon: <Building2 size={18} /> },
       ];
 
   const doLogout = async () => {
@@ -43,10 +49,6 @@ export default function Dashboard() {
       cancelButtonText: 'Cancel',
       background: '#faf7f2',
       color: '#1a1612',
-      customClass: {
-        popup: 'swal-popup',
-        title: 'swal-title',
-      }
     });
     if (result.isConfirmed) { logout(); nav('/'); }
   };
@@ -60,7 +62,7 @@ export default function Dashboard() {
           Attend<span style={{ color: 'var(--accent)' }}>X</span>
         </div>
         {/* Desktop nav */}
-        <div className="desktop-nav" style={{ display: 'flex', gap: 2 }}>
+        <div className="desktop-nav" style={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
           {tabs.map(t => (
             <button key={t.id} onClick={() => setTab(t.id)}
               style={{ padding: '7px 12px', borderRadius: 3, border: 'none', background: tab === t.id ? 'var(--accent)' : 'transparent', color: tab === t.id ? '#fff' : '#888', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', fontSize: 12, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6, transition: 'all 0.15s' }}>
@@ -69,7 +71,6 @@ export default function Dashboard() {
           ))}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 11, color: '#666', fontFamily: 'DM Mono, monospace', display: 'none' }} className="desktop-only">{auth?.user?.name}</span>
           <button onClick={doLogout}
             style={{ padding: '6px 10px', border: '1px solid #444', borderRadius: 3, background: 'transparent', color: '#888', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontFamily: 'DM Sans, sans-serif', transition: 'all 0.15s' }}
             onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.color = 'var(--accent)'; }}
@@ -87,16 +88,19 @@ export default function Dashboard() {
         {tab === 'employees'  && !isSA && <Employees />}
         {tab === 'attendance' && !isSA && <AttendanceLog />}
         {tab === 'reports'    && !isSA && <Reports />}
+        {tab === 'holidays'   && !isSA && <Holidays />}
+        {tab === 'salary'     && !isSA && <Salary />}
+        {tab === 'officewise' && !isSA && <OfficeWise />}
         {tab === 'admins'     && isSA  && <SuperAdminPanel />}
       </div>
 
       {/* Mobile bottom nav */}
-      <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: 'var(--ink)', borderTop: '1px solid #333', display: 'flex', zIndex: 200, paddingBottom: 'env(safe-area-inset-bottom)' }} className="mobile-nav">
+      <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: 'var(--ink)', borderTop: '1px solid #333', display: 'flex', zIndex: 200, paddingBottom: 'env(safe-area-inset-bottom)', overflowX: 'auto' }} className="mobile-nav">
         {tabs.map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
-            style={{ flex: 1, padding: '10px 4px 8px', border: 'none', background: 'transparent', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, color: tab === t.id ? 'var(--accent)' : '#666', transition: 'color 0.15s', minWidth: 0 }}>
+            style={{ flex: '0 0 auto', minWidth: 56, padding: '10px 8px 8px', border: 'none', background: 'transparent', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, color: tab === t.id ? 'var(--accent)' : '#666', transition: 'color 0.15s' }}>
             <div style={{ color: tab === t.id ? 'var(--accent)' : '#666' }}>{t.icon}</div>
-            <span style={{ fontSize: 9, fontFamily: 'DM Sans, sans-serif', fontWeight: tab === t.id ? 700 : 400, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', padding: '0 2px' }}>{t.label}</span>
+            <span style={{ fontSize: 9, fontFamily: 'DM Sans, sans-serif', fontWeight: tab === t.id ? 700 : 400, whiteSpace: 'nowrap' }}>{t.label}</span>
             {tab === t.id && <div style={{ width: 4, height: 4, borderRadius: '50%', background: 'var(--accent)', marginTop: 1 }} />}
           </button>
         ))}

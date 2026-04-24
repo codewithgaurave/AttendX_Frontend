@@ -9,10 +9,15 @@ export default function Overview() {
   const isSA = auth?.role === 'superadmin';
   const [report, setReport] = useState(null);
   const [admins, setAdmins] = useState([]);
+  const [offices, setOffices] = useState([]);
+  const [selOffice, setSelOffice] = useState('all');
 
   useEffect(() => {
     if (isSA) api.get('/superadmin/admins').then(r => setAdmins(r.data));
-    else api.get(`/attendance/report/${auth.user.id}?date=${today()}`).then(r => setReport(r.data));
+    else {
+      api.get(`/attendance/report/${auth.user.id}?date=${today()}`).then(r => setReport(r.data));
+      api.get('/admin/offices').then(r => setOffices(r.data));
+    }
   }, []);
 
   const greet = () => { const h = new Date().getHours(); return h < 12 ? 'Morning' : h < 17 ? 'Afternoon' : 'Evening'; };
@@ -32,13 +37,27 @@ export default function Overview() {
   }
 
   const summary = report?.summary;
-  const present = report?.present || [];
-  const absent  = report?.absent  || [];
+  const allPresent = report?.present || [];
+  const allAbsent  = report?.absent  || [];
+
+  const filterByOffice = (rows) =>
+    selOffice === 'all' ? rows : rows.filter(r => r.office === offices.find(o => o._id === selOffice)?.name);
+
+  const present = filterByOffice(allPresent);
+  const absent  = filterByOffice(allAbsent);
 
   return (
     <>
       <div style={{ fontFamily: 'Syne, sans-serif', fontSize: 22, fontWeight: 800, marginBottom: 4 }}>Good {greet()}, {auth?.user?.name}</div>
-      <div style={{ fontSize: 13, color: 'var(--ink2)', marginBottom: 24 }}>{fmtDate(today())} — Today's snapshot</div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, marginBottom: 24 }}>
+        <div style={{ fontSize: 13, color: 'var(--ink2)' }}>{fmtDate(today())} — Today's snapshot</div>
+        {offices.length > 1 && (
+          <select className="form-inp" value={selOffice} onChange={e => setSelOffice(e.target.value)} style={{ maxWidth: 180, marginBottom: 0 }}>
+            <option value="all">All Offices</option>
+            {offices.map(o => <option key={o._id} value={o._id}>{o.name}</option>)}
+          </select>
+        )}
+      </div>
 
       <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(5,1fr)' }}>
         {[
@@ -55,7 +74,7 @@ export default function Overview() {
         ))}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 20 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 20 }} className="overview-cards">
         <div className="tbl-wrap">
           <div className="tbl-head-row"><div className="tbl-title">Today's Status</div></div>
           <table>

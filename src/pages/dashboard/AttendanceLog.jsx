@@ -46,6 +46,10 @@ function DateView({ adminId }) {
   const [date, setDate] = useState(today());
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [offices, setOffices] = useState([]);
+  const [selOffice, setSelOffice] = useState('all');
+
+  useEffect(() => { api.get('/admin/offices').then(r => setOffices(r.data)); }, []);
 
   useEffect(() => {
     setLoading(true);
@@ -53,8 +57,10 @@ function DateView({ adminId }) {
       .then(r => setReport(r.data)).finally(() => setLoading(false));
   }, [date]);
 
-  const present = report?.present || [];
-  const absent  = report?.absent  || [];
+  const filterByOffice = (rows) => selOffice === 'all' ? rows : rows.filter(r => r.office === offices.find(o => o._id === selOffice)?.name);
+
+  const present = filterByOffice(report?.present || []);
+  const absent  = filterByOffice(report?.absent  || []);
   const summary = report?.summary;
 
   return (
@@ -64,6 +70,15 @@ function DateView({ adminId }) {
           <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink2)', textTransform: 'uppercase', letterSpacing: 0.5, display: 'block', marginBottom: 6 }}>Select Date</label>
           <input className="form-inp" type="date" value={date} onChange={e => setDate(e.target.value)} style={{ maxWidth: 200 }} />
         </div>
+        {offices.length > 1 && (
+          <div>
+            <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink2)', textTransform: 'uppercase', letterSpacing: 0.5, display: 'block', marginBottom: 6 }}>Office</label>
+            <select className="form-inp" value={selOffice} onChange={e => setSelOffice(e.target.value)} style={{ maxWidth: 200 }}>
+              <option value="all">All Offices</option>
+              {offices.map(o => <option key={o._id} value={o._id}>{o.name}</option>)}
+            </select>
+          </div>
+        )}
         {summary && <SummaryPills summary={summary} />}
       </div>
       <AttTable rows={[...present, ...absent]} title={fmtDate(date)} loading={loading} />
