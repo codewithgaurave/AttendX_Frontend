@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../utils/api';
 import { avt } from '../../utils/api';
-import { ChevronLeft, ChevronRight, Users } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Users, BarChart2 } from 'lucide-react';
 
 export default function Reports() {
   const { auth } = useAuth();
