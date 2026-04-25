@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react';
 import api from '../../utils/api';
 import { avt } from '../../utils/api';
 import { toast } from '../../components/Toast';
+import { exportEmployees } from '../../utils/exportExcel';
 import Swal from 'sweetalert2';
-import { UserPlus, Pencil, Clock, Trash2, Users } from 'lucide-react';
+import { UserPlus, Pencil, Clock, Trash2, Users, Download } from 'lucide-react';
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const emptyForm = { name: '', email: '', phone: '', employeeCode: '', designation: '', joiningDate: '', officeId: '', department: '', address: '', emergencyContact: '', bloodGroup: '', gender: '', dob: '', monthlySalary: '', weeklyOff: [0], workingHours: { startTime: '09:00', endTime: '18:00' } };
@@ -113,6 +114,12 @@ export default function Employees() {
           <button className="btn btn-primary btn-sm" onClick={() => { setForm(emptyForm); setEditId(null); setShowModal(true); }} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginLeft: 'auto' }}>
             <UserPlus size={14} />Add Employee
           </button>
+          {filterOffice !== 'all' && <button className="btn btn-sm" onClick={() => exportEmployees(employees.filter(e => (e.officeId?._id || e.officeId) === filterOffice), offices.find(o => o._id === filterOffice)?.name || 'Employees')} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <Download size={14} />Export
+          </button>}
+          {filterOffice === 'all' && <button className="btn btn-sm" onClick={() => exportEmployees(employees, 'All-Employees')} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <Download size={14} />Export All
+          </button>}
         </div>
       </div>
 

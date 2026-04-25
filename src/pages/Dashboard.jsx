@@ -16,7 +16,7 @@ import Reports from './dashboard/Reports';
 import SuperAdminPanel from './dashboard/SuperAdminPanel';
 import Holidays from './dashboard/Holidays';
 import Salary from './dashboard/Salary';
-import OfficeWise from './dashboard/OfficeWise';
+import MasterDashboard from './dashboard/MasterDashboard';
 
 // Bottom nav — only 4 tabs
 const BOTTOM_TABS = [
@@ -37,8 +37,9 @@ export default function Dashboard() {
   const nav = useNavigate();
   const [tab, setTab] = useState('overview');
   const isSA = auth?.role === 'superadmin';
+  const isMA = auth?.role === 'masteradmin';
 
-  const bottomTabs = isSA ? SA_BOTTOM_TABS : BOTTOM_TABS;
+  const bottomTabs = isMA ? [{ id: 'overview', label: 'Dashboard', icon: <LayoutDashboard size={20} /> }, { id: 'profile', label: 'Profile', icon: <UserCircle size={20} /> }] : isSA ? SA_BOTTOM_TABS : BOTTOM_TABS;
 
   const doLogout = async () => {
     const result = await Swal.fire({
@@ -67,7 +68,11 @@ export default function Dashboard() {
 
         {/* Desktop nav — all tabs */}
         <div className="desktop-nav" style={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-          {(isSA
+          {(isMA
+            ? [
+                { id: 'overview', label: 'Master Dashboard', icon: <LayoutDashboard size={14} /> },
+              ]
+            : isSA
             ? [
                 { id: 'overview', label: 'Overview', icon: <LayoutDashboard size={14} /> },
                 { id: 'admins',   label: 'Admins',   icon: <UserCog size={14} /> },
@@ -101,17 +106,17 @@ export default function Dashboard() {
 
       {/* Content */}
       <div style={{ flex: 1, padding: '20px 16px', maxWidth: 1200, width: '100%', margin: '0 auto', boxSizing: 'border-box' }}>
-        {tab === 'overview'   && <Overview />}
-        {tab === 'qrcode'     && !isSA && <QRPanel />}
-        {tab === 'offices'    && !isSA && <Offices />}
-        {tab === 'employees'  && !isSA && <Employees />}
-        {tab === 'attendance' && !isSA && <AttendanceLog />}
-        {tab === 'reports'    && !isSA && <Reports />}
-        {tab === 'holidays'   && !isSA && <Holidays />}
-        {tab === 'salary'     && !isSA && <Salary />}
-        {tab === 'officewise' && !isSA && <OfficeWise />}
+        {tab === 'overview'   && (isMA ? <MasterDashboard /> : <Overview />)}
+        {tab === 'qrcode'     && !isSA && !isMA && <QRPanel />}
+        {tab === 'offices'    && !isSA && !isMA && <Offices />}
+        {tab === 'employees'  && !isSA && !isMA && <Employees />}
+        {tab === 'attendance' && !isSA && !isMA && <AttendanceLog />}
+        {tab === 'reports'    && !isSA && !isMA && <Reports />}
+        {tab === 'holidays'   && !isSA && !isMA && <Holidays />}
+        {tab === 'salary'     && !isSA && !isMA && <Salary />}
+        {tab === 'officewise' && !isSA && !isMA && <OfficeWise />}
         {tab === 'admins'     && isSA  && <SuperAdminPanel />}
-        {tab === 'profile'    && <ProfilePanel isSA={isSA} onNavigate={setTab} onLogout={doLogout} auth={auth} />}
+        {tab === 'profile'    && <ProfilePanel isSA={isSA} isMA={isMA} onNavigate={setTab} onLogout={doLogout} auth={auth} />}
       </div>
 
       {/* Mobile bottom nav — only 4 tabs */}
@@ -130,8 +135,8 @@ export default function Dashboard() {
 }
 
 /* ── Profile Panel ── */
-function ProfilePanel({ isSA, onNavigate, onLogout, auth }) {
-  const menuItems = isSA
+function ProfilePanel({ isSA, isMA, onNavigate, onLogout, auth }) {
+  const menuItems = (isSA || isMA)
     ? []
     : [
         { id: 'offices',    label: 'Offices',     icon: <MapPin size={18} />,       desc: 'Manage office locations & geofence' },
@@ -154,7 +159,7 @@ function ProfilePanel({ isSA, onNavigate, onLogout, auth }) {
           <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>{auth?.user?.email}</div>
           <div style={{ marginTop: 6 }}>
             <span style={{ background: 'var(--accent)', color: '#fff', padding: '2px 10px', borderRadius: 2, fontSize: 10, fontFamily: 'DM Mono, monospace', fontWeight: 700, textTransform: 'uppercase' }}>
-              {isSA ? 'Super Admin' : 'Admin'}
+              {isMA ? 'Master Admin' : isSA ? 'Super Admin' : 'Admin'}
             </span>
           </div>
         </div>

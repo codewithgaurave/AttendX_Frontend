@@ -13,8 +13,11 @@ export default function Overview() {
   const [selOffice, setSelOffice] = useState('all');
 
   useEffect(() => {
-    if (isSA) api.get('/superadmin/admins').then(r => setAdmins(r.data));
-    else {
+    if (isSA) {
+      api.get('/superadmin/admins').then(r => {
+        setAdmins(r.data.admins || []);
+      }).catch(() => setAdmins([]));
+    } else {
       api.get(`/attendance/report/${auth.user.id}?date=${today()}`).then(r => setReport(r.data));
       api.get('/admin/offices').then(r => setOffices(r.data));
     }
@@ -28,9 +31,9 @@ export default function Overview() {
         <div style={{ fontFamily: 'Syne, sans-serif', fontSize: 22, fontWeight: 800, marginBottom: 4 }}>Good {greet()}, Super Admin</div>
         <div style={{ fontSize: 13, color: 'var(--ink2)', marginBottom: 24 }}>System overview</div>
         <div className="stats-grid">
-          <div className="stat-box s-total"><div className="stat-label">Total Admins</div><div className="stat-val">{admins.length}</div></div>
-          <div className="stat-box s-present"><div className="stat-label">Active</div><div className="stat-val">{admins.filter(a => a.isActive).length}</div></div>
-          <div className="stat-box s-absent"><div className="stat-label">Inactive</div><div className="stat-val">{admins.filter(a => !a.isActive).length}</div></div>
+          <div className="stat-box s-total"><div className="stat-label">Total Admins</div><div className="stat-val">{admins?.length || 0}</div></div>
+          <div className="stat-box s-present"><div className="stat-label">Active</div><div className="stat-val">{admins?.filter(a => a.isActive)?.length || 0}</div></div>
+          <div className="stat-box s-absent"><div className="stat-label">Inactive</div><div className="stat-val">{admins?.filter(a => !a.isActive)?.length || 0}</div></div>
         </div>
       </>
     );

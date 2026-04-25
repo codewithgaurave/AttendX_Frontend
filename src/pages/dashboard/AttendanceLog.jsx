@@ -2,10 +2,12 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../utils/api';
 import { avt, fmtDate, today } from '../../utils/api';
+import { exportMonthlyAttendance, exportRangeAttendance } from '../../utils/exportExcel';
+import { toast } from '../../components/Toast';
 import Swal from 'sweetalert2';
 import {
   CalendarDays, Calendar, BarChart2, ChevronDown, ChevronUp,
-  MapPin, Clock, CheckCircle, XCircle, Loader, Inbox, ChevronRight, Camera
+  MapPin, Clock, CheckCircle, XCircle, Loader, Inbox, ChevronRight, Camera, Download, Edit2
 } from 'lucide-react';
 
 const MODE_TABS = [
@@ -48,8 +50,12 @@ function DateView({ adminId }) {
   const [loading, setLoading] = useState(false);
   const [offices, setOffices] = useState([]);
   const [selOffice, setSelOffice] = useState('all');
+  const [employees, setEmployees] = useState([]);
 
-  useEffect(() => { api.get('/admin/offices').then(r => setOffices(r.data)); }, []);
+  useEffect(() => { 
+    api.get('/admin/offices').then(r => setOffices(r.data));
+    api.get('/admin/employees').then(r => setEmployees(r.data));
+  }, []);
 
   useEffect(() => {
     setLoading(true);
@@ -62,6 +68,50 @@ function DateView({ adminId }) {
   const present = filterByOffice(report?.present || []);
   const absent  = filterByOffice(report?.absent  || []);
   const summary = report?.summary;
+
+  const markAttendance = async (employeeId, status) => {
+    try {
+      await api.post('/attendance/mark', { employeeId, date, status });
+      toast(`Marked as ${status}`);
+      setLoading(true);
+      api.get(`/attendance/report/${adminId}?date=${date}`)
+        .then(r => setReport(r.data)).finally(() => setLoading(false));
+    } catch (e) { toast(e.response?.data?.message || 'Error'); }
+  };
+
+  const markAbsentEmployees = async () => {
+    const absentEmpIds = absent.map(a => a.employeeId);
+    const notMarked = employees.filter(e => !present.find(p => p.employeeId === e._id) && !absentEmpIds.includes(e._id));
+    
+    if (notMarked.length === 0) {
+      toast('All employees already marked');
+      return;
+    }
+
+    const result = await Swal.fire({
+      title: `Mark ${notMarked.length} employees as Absent?`,
+      text: 'This will mark all unmarked employees as absent for today.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#c84b2f',
+      cancelButtonColor: '#5a5248',
+      confirmButtonText: 'Yes, Mark Absent',
+      background: '#faf7f2',
+      color: '#1a1612',
+    });
+
+    if (!result.isConfirmed) return;
+
+    try {
+      for (const emp of notMarked) {
+        await api.post('/attendance/mark', { employeeId: emp._id, date, status: 'absent' });
+      }
+      toast(`${notMarked.length} employees marked as absent`);
+      setLoading(true);
+      api.get(`/attendance/report/${adminId}?date=${date}`)
+        .then(r => setReport(r.data)).finally(() => setLoading(false));
+    } catch (e) { toast('Error marking attendance'); }
+  };
 
   return (
     <>
@@ -80,8 +130,11 @@ function DateView({ adminId }) {
           </div>
         )}
         {summary && <SummaryPills summary={summary} />}
+        <button className="btn btn-primary btn-sm" onClick={markAbsentEmployees} style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto' }}>
+          <Edit2 size={14} />Mark Absent
+        </button>
       </div>
-      <AttTable rows={[...present, ...absent]} title={fmtDate(date)} loading={loading} />
+      <AttTable rows={[...present, ...absent]} title={fmtDate(date)} loading={loading} onMarkAttendance={markAttendance} />
     </>
   );
 }
@@ -90,12 +143,17 @@ function DateView({ adminId }) {
 function MonthlyView({ adminId }) {
   const [month, setMonth] = useState(today().slice(0, 7));
   const [employees, setEmployees] = useState([]);
+  const [offices, setOffices] = useState([]);
   const [selEmp, setSelEmp] = useState('all');
+  const [selOffice, setSelOffice] = useState('all');
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [expanded, setExpanded] = useState(null);
 
-  useEffect(() => { api.get('/admin/employees').then(r => setEmployees(r.data)); }, []);
+  useEffect(() => { 
+    api.get('/admin/employees').then(r => setEmployees(r.data));
+    api.get('/admin/offices').then(r => setOffices(r.data));
+  }, []);
 
   const load = () => {
     setLoading(true);
@@ -117,6 +175,14 @@ function MonthlyView({ adminId }) {
   const monthLabel = new Date(month + '-01').toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
   const overall = data?.overallSummary;
 
+  const handleExport = () => {
+    const filteredDaily = data?.dailySummary?.map(day => ({
+      ...day,
+      records: day.records.filter(r => selOffice === 'all' || r.office === offices.find(o => o._id === selOffice)?.name)
+    })) || [];
+    exportMonthlyAttendance(filteredDaily, employees, month, overall);
+  };
+
   return (
     <>
       <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: 20 }}>
@@ -135,6 +201,18 @@ function MonthlyView({ adminId }) {
             {employees.map(e => <option key={e._id} value={e._id}>{e.name}</option>)}
           </select>
         </div>
+        {offices.length > 1 && (
+          <div>
+            <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink2)', textTransform: 'uppercase', letterSpacing: 0.5, display: 'block', marginBottom: 6 }}>Office</label>
+            <select className="form-inp" value={selOffice} onChange={e => setSelOffice(e.target.value)} style={{ maxWidth: 200 }}>
+              <option value="all">All Offices</option>
+              {offices.map(o => <option key={o._id} value={o._id}>{o.name}</option>)}
+            </select>
+          </div>
+        )}
+        <button className="btn btn-primary" onClick={handleExport} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <Download size={14} />Export
+        </button>
       </div>
 
       {overall && <OverallStats overall={overall} />}
@@ -157,12 +235,17 @@ function RangeView({ adminId }) {
   const [from, setFrom] = useState(today().slice(0, 8) + '01');
   const [to, setTo]     = useState(today());
   const [employees, setEmployees] = useState([]);
+  const [offices, setOffices] = useState([]);
   const [selEmp, setSelEmp] = useState('all');
+  const [selOffice, setSelOffice] = useState('all');
   const [data, setData]   = useState(null);
   const [loading, setLoading] = useState(false);
   const [expanded, setExpanded] = useState(null);
 
-  useEffect(() => { api.get('/admin/employees').then(r => setEmployees(r.data)); }, []);
+  useEffect(() => { 
+    api.get('/admin/employees').then(r => setEmployees(r.data));
+    api.get('/admin/offices').then(r => setOffices(r.data));
+  }, []);
 
   const load = () => {
     if (!from || !to) return;
@@ -173,6 +256,14 @@ function RangeView({ adminId }) {
   };
 
   const overall = data?.overallSummary;
+
+  const handleExport = () => {
+    const filteredDaily = data?.dailySummary?.map(day => ({
+      ...day,
+      records: day.records.filter(r => selOffice === 'all' || r.office === offices.find(o => o._id === selOffice)?.name)
+    })) || [];
+    exportRangeAttendance(filteredDaily, employees, from, to, overall);
+  };
 
   return (
     <>
@@ -192,9 +283,21 @@ function RangeView({ adminId }) {
             {employees.map(e => <option key={e._id} value={e._id}>{e.name}</option>)}
           </select>
         </div>
+        {offices.length > 1 && (
+          <div>
+            <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink2)', textTransform: 'uppercase', letterSpacing: 0.5, display: 'block', marginBottom: 6 }}>Office</label>
+            <select className="form-inp" value={selOffice} onChange={e => setSelOffice(e.target.value)} style={{ maxWidth: 200 }}>
+              <option value="all">All Offices</option>
+              {offices.map(o => <option key={o._id} value={o._id}>{o.name}</option>)}
+            </select>
+          </div>
+        )}
         <button className="btn btn-primary" onClick={load} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           Apply <ChevronRight size={14} />
         </button>
+        {data && <button className="btn btn-primary" onClick={handleExport} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <Download size={14} />Export
+        </button>}
       </div>
 
       {overall && <OverallStats overall={overall} />}
@@ -328,7 +431,7 @@ function showSelfie(name, type, selfie, time, location) {
   });
 }
 
-function AttTable({ rows, title, loading }) {
+function AttTable({ rows, title, loading, onMarkAttendance }) {
   return (
     <div className="tbl-wrap" style={{ overflowX: 'auto' }}>
       <div className="tbl-head-row">
@@ -338,10 +441,10 @@ function AttTable({ rows, title, loading }) {
       <table>
         <thead><tr>
           <th>Employee</th><th>Check In</th><th>In Photo</th><th>Check Out</th><th>Out Photo</th>
-          <th>Hours</th><th>Late</th><th>GPS</th><th>Status</th>
+          <th>Hours</th><th>Late</th><th>GPS</th><th>Status</th><th>Actions</th>
         </tr></thead>
         <tbody>
-          {loading && <tr><td colSpan={9}><EmptyState icon={<Loader size={28} />} text="Loading…" /></td></tr>}
+          {loading && <tr><td colSpan={10}><EmptyState icon={<Loader size={28} />} text="Loading…" /></td></tr>}
           {!loading && rows.map((r, i) => (
             <tr key={r.employeeId + i}>
               <td><div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -376,10 +479,28 @@ function AttTable({ rows, title, loading }) {
                 : <span className="gps-na-tag">—</span>}
               </td>
               <td><span className={`badge ${r.status === 'present' ? 'b-in' : r.status === 'half-day' ? 'b-out' : 'b-absent'}`}>{r.status || 'absent'}</span></td>
+              <td>
+                {onMarkAttendance && (
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    <button onClick={() => onMarkAttendance(r.employeeId, 'present')} 
+                      style={{ padding: '2px 6px', fontSize: 10, border: '1px solid var(--success)', background: r.status === 'present' ? 'var(--success)' : 'transparent', color: r.status === 'present' ? 'white' : 'var(--success)', borderRadius: 3, cursor: 'pointer' }}>
+                      P
+                    </button>
+                    <button onClick={() => onMarkAttendance(r.employeeId, 'half-day')} 
+                      style={{ padding: '2px 6px', fontSize: 10, border: '1px solid var(--warning)', background: r.status === 'half-day' ? 'var(--warning)' : 'transparent', color: r.status === 'half-day' ? 'white' : 'var(--warning)', borderRadius: 3, cursor: 'pointer' }}>
+                      H
+                    </button>
+                    <button onClick={() => onMarkAttendance(r.employeeId, 'absent')} 
+                      style={{ padding: '2px 6px', fontSize: 10, border: '1px solid var(--danger)', background: r.status === 'absent' ? 'var(--danger)' : 'transparent', color: r.status === 'absent' ? 'white' : 'var(--danger)', borderRadius: 3, cursor: 'pointer' }}>
+                      A
+                    </button>
+                  </div>
+                )}
+              </td>
             </tr>
           ))}
           {!loading && rows.length === 0 && (
-            <tr><td colSpan={9}><EmptyState icon={<Inbox size={28} />} text="No records" /></td></tr>
+            <tr><td colSpan={10}><EmptyState icon={<Inbox size={28} />} text="No records" /></td></tr>
           )}
         </tbody>
       </table>

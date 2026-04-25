@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../utils/api';
 import { avt } from '../../utils/api';
-import { ChevronLeft, ChevronRight, Users, BarChart2 } from 'lucide-react';
+import { exportEmployeeReport } from '../../utils/exportExcel';
+import { ChevronLeft, ChevronRight, Users, BarChart2, Download } from 'lucide-react';
 
 export default function Reports() {
   const { auth } = useAuth();
@@ -74,10 +75,13 @@ export default function Reports() {
           {/* Employee header */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20, padding: '16px 20px', background: 'var(--surface)', border: '1.5px solid var(--border)', borderRadius: 4 }}>
             <div className="emp-avt" style={{ width: 48, height: 48, fontSize: 16, fontWeight: 800 }}>{avt(selEmp.name)}</div>
-            <div>
+            <div style={{ flex: 1 }}>
               <div style={{ fontFamily: 'Syne, sans-serif', fontSize: 18, fontWeight: 800 }}>{selEmp.name}</div>
               <div style={{ fontSize: 12, color: 'var(--ink2)' }}>{selEmp.employeeCode} · {selEmp.designation} · {monthLabel}</div>
             </div>
+            {empReport && <button className="btn btn-primary" onClick={() => exportEmployeeReport(empReport, selEmp.name, month)} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Download size={14} />Export
+            </button>}
           </div>
 
           {loading && (

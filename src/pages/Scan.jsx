@@ -6,8 +6,8 @@ import api from '../utils/api';
 import { avt, fmtTime } from '../utils/api';
 import { toast } from '../components/Toast';
 
-const STEPS = { camera: 1, gps: 2, pick: 3, selfie: 4, confirm: 5, done: 5, blocked: 2 };
-const LABELS = { camera: 'Scan QR Code', gps: 'Verifying Location', pick: 'Select Your Name', selfie: 'Take a Selfie', confirm: 'Confirm Attendance', done: 'Done!', blocked: 'Access Denied' };
+const STEPS = { camera: 1, gps: 2, pick: 3, confirm: 4, done: 5, blocked: 2 };
+const LABELS = { camera: 'Scan QR Code', gps: 'Verifying Location', pick: 'Select Your Name', confirm: 'Confirm Attendance', done: 'Done!', blocked: 'Access Denied' };
 
 export default function Scan() {
   const nav = useNavigate();
@@ -16,7 +16,6 @@ export default function Scan() {
   const [employees, setEmployees] = useState([]);
   const [selEmp, setSelEmp] = useState(null);
   const [geoResult, setGeoResult] = useState(null);
-  const [selfieData, setSelfieData] = useState(null);
   const [search, setSearch] = useState('');
   const [doneData, setDoneData] = useState(null);
   const [blockedInfo, setBlockedInfo] = useState(null);
@@ -24,14 +23,12 @@ export default function Scan() {
 
   const scannerRef = useRef(null);
   const videoRef = useRef(null);
-  const streamRef = useRef(null);
 
-  useEffect(() => () => { stopCamera(); stopSelfie(); }, []);
+  useEffect(() => () => { stopCamera(); }, []);
 
   useEffect(() => {
     if (step === 'camera') setTimeout(startCamera, 300);
     if (step === 'gps')    setTimeout(startGPS, 300);
-    if (step === 'selfie') setTimeout(startSelfie, 300);
   }, [step]);
 
   const startCamera = () => {
@@ -76,37 +73,17 @@ export default function Scan() {
     }
   }, [geoResult]);
 
-  const startSelfie = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
-      streamRef.current = stream;
-      if (videoRef.current) videoRef.current.srcObject = stream;
-    } catch { /* denied */ }
-  };
-
-  const stopSelfie = () => {
-    if (streamRef.current) { streamRef.current.getTracks().forEach(t => t.stop()); streamRef.current = null; }
-  };
-
-  const captureSelfie = () => {
-    const video = videoRef.current;
-    if (!video) return;
-    const canvas = document.createElement('canvas');
-    canvas.width = 300; canvas.height = 300;
-    const ctx = canvas.getContext('2d');
-    ctx.save(); ctx.scale(-1, 1); ctx.drawImage(video, 0, 0, -300, 300); ctx.restore();
-    setSelfieData(canvas.toDataURL('image/jpeg', 0.6));
-    stopSelfie();
-    setTimeout(() => setStep('confirm'), 800);
-  };
-
-  const markAttendance = async (type) => {
-    if (!selEmp || !geoResult) return;
+  const markSmartAttendance = async (employee) => {
+    if (!employee || !geoResult) return;
     setLoading(true);
     try {
-      const endpoint = type === 'in' ? '/attendance/checkin' : '/attendance/checkout';
-      const { data } = await api.post(endpoint, { employeeId: selEmp._id, adminId, lat: geoResult.lat, long: geoResult.long, selfie: selfieData || '' });
-      setDoneData({ type, data, emp: selEmp });
+      const { data } = await api.post('/attendance/smart', { 
+        employeeId: employee._id, 
+        adminId, 
+        lat: geoResult.lat, 
+        long: geoResult.long 
+      });
+      setDoneData({ type: data.action === 'punch-in' ? 'in' : 'out', data, emp: employee });
       setStep('done');
     } catch (e) {
       if (e.response?.status === 403) { setBlockedInfo(e.response.data); setStep('blocked'); }
@@ -115,10 +92,10 @@ export default function Scan() {
   };
 
   const goBack = () => {
-    const map = { camera: '/', gps: 'camera', blocked: 'camera', pick: 'gps', selfie: 'pick', confirm: 'selfie', done: '/' };
+    const map = { camera: '/', gps: 'camera', blocked: 'camera', pick: 'gps', confirm: 'pick', done: '/' };
     const next = map[step];
-    if (next === '/') { stopSelfie(); nav('/'); }
-    else { if (step === 'selfie') stopSelfie(); setStep(next); }
+    if (next === '/') { nav('/'); }
+    else { setStep(next); }
   };
 
   const filtered = employees.filter(e =>
@@ -138,14 +115,14 @@ export default function Scan() {
           <div style={{ fontFamily: 'Syne, sans-serif', fontSize: 15, fontWeight: 700, flex: 1 }}>{LABELS[step]}</div>
           {step !== 'done' && step !== 'blocked' && (
             <span style={{ fontFamily: 'DM Mono, monospace', fontSize: 11, color: 'var(--ink2)', background: 'var(--border)', padding: '3px 8px', borderRadius: 2 }}>
-              {STEPS[step]} / 5
+              {STEPS[step]} / 4
             </span>
           )}
         </div>
 
         {/* Progress bar */}
         <div style={{ display: 'flex', gap: 4, padding: '14px 18px 0' }}>
-          {[1,2,3,4,5].map(n => (
+          {[1,2,3,4].map(n => (
             <div key={n} style={{ flex: 1, height: 3, borderRadius: 2, background: STEPS[step] > n ? 'var(--success)' : STEPS[step] === n ? 'var(--accent)' : 'var(--border)', transition: 'background 0.3s' }} />
           ))}
         </div>
@@ -154,9 +131,8 @@ export default function Scan() {
           {step === 'camera'  && <CameraStep />}
           {step === 'gps'     && <GPSStep geoResult={geoResult} />}
           {step === 'blocked' && <BlockedStep info={blockedInfo} onRetry={() => { setGeoResult(null); setStep('gps'); }} onHome={() => nav('/')} />}
-          {step === 'pick'    && <PickStep employees={filtered} search={search} setSearch={setSearch} geoResult={geoResult} onPick={e => { setSelEmp(e); setStep('selfie'); }} />}
-          {step === 'selfie'  && <SelfieStep videoRef={videoRef} selfieData={selfieData} onCapture={captureSelfie} onSkip={() => { stopSelfie(); setStep('confirm'); }} />}
-          {step === 'confirm' && <ConfirmStep emp={selEmp} selfieData={selfieData} geoResult={geoResult} loading={loading} onMark={markAttendance} onBack={() => setStep('pick')} />}
+          {step === 'pick'    && <PickStep employees={filtered} search={search} setSearch={setSearch} geoResult={geoResult} onPick={e => { setSelEmp(e); markSmartAttendance(e); }} loading={loading} />}
+          {step === 'confirm' && <ConfirmStep emp={selEmp} geoResult={geoResult} loading={loading} onMark={markSmartAttendance} onBack={() => setStep('pick')} />}
           {step === 'done'    && <DoneStep doneData={doneData} onHome={() => nav('/')} />}
         </div>
       </div>
@@ -218,7 +194,7 @@ function BlockedStep({ info, onRetry, onHome }) {
   );
 }
 
-function PickStep({ employees, search, setSearch, geoResult, onPick }) {
+function PickStep({ employees, search, setSearch, geoResult, onPick, loading }) {
   return (
     <>
       {geoResult?.ok && (
@@ -227,21 +203,28 @@ function PickStep({ employees, search, setSearch, geoResult, onPick }) {
         </div>
       )}
       <div style={{ fontSize: 13, color: 'var(--success)', background: '#e8f5ee', border: '1px solid #b8dcc8', borderRadius: 4, padding: '8px 12px', marginBottom: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
-        <CheckCircle size={13} />QR verified — tap your name
+        <CheckCircle size={13} />QR verified — tap your name to mark attendance
       </div>
-      <input className="form-inp" placeholder="Search your name..." value={search} onChange={e => setSearch(e.target.value)} style={{ marginBottom: 10 }} />
+      <input className="form-inp" placeholder="Search your name..." value={search} onChange={e => setSearch(e.target.value)} style={{ marginBottom: 10 }} disabled={loading} />
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 300, overflowY: 'auto' }}>
         {employees.length === 0 && <div className="empty-state"><User size={32} style={{ margin: '0 auto 8px', display: 'block', color: 'var(--ink2)' }} /><div>No employees found</div></div>}
         {employees.map(e => (
-          <div key={e._id} onClick={() => onPick(e)}
-            style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', border: '1.5px solid var(--border)', borderRadius: 4, cursor: 'pointer', background: 'var(--surface)', transition: 'all 0.15s' }}
-            onMouseEnter={ev => { ev.currentTarget.style.borderColor = 'var(--ink)'; ev.currentTarget.style.background = 'var(--surface2)'; }}
-            onMouseLeave={ev => { ev.currentTarget.style.borderColor = 'var(--border)'; ev.currentTarget.style.background = 'var(--surface)'; }}>
+          <div key={e._id} onClick={() => !loading && onPick(e)}
+            style={{ 
+              display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', 
+              border: '1.5px solid var(--border)', borderRadius: 4, 
+              cursor: loading ? 'not-allowed' : 'pointer', 
+              background: 'var(--surface)', transition: 'all 0.15s',
+              opacity: loading ? 0.6 : 1
+            }}
+            onMouseEnter={ev => { if (!loading) { ev.currentTarget.style.borderColor = 'var(--ink)'; ev.currentTarget.style.background = 'var(--surface2)'; } }}
+            onMouseLeave={ev => { if (!loading) { ev.currentTarget.style.borderColor = 'var(--border)'; ev.currentTarget.style.background = 'var(--surface)'; } }}>
             <div className="emp-avt">{avt(e.name)}</div>
             <div style={{ flex: 1 }}>
               <div style={{ fontWeight: 600, fontSize: 14 }}>{e.name}</div>
               <div style={{ fontSize: 12, color: 'var(--ink2)', marginTop: 2 }}>{e.designation} · {e.employeeCode}</div>
             </div>
+            {loading && <div style={{ fontSize: 11, color: 'var(--accent)', fontWeight: 600 }}>Processing...</div>}
           </div>
         ))}
       </div>
@@ -249,34 +232,7 @@ function PickStep({ employees, search, setSearch, geoResult, onPick }) {
   );
 }
 
-function SelfieStep({ videoRef, selfieData, onCapture, onSkip }) {
-  return (
-    <div style={{ textAlign: 'center', padding: '8px 0' }}>
-      <div style={{ fontFamily: 'Syne, sans-serif', fontSize: 18, fontWeight: 800, marginBottom: 6 }}>Quick Selfie</div>
-      <div style={{ fontSize: 13, color: 'var(--ink2)', marginBottom: 20, lineHeight: 1.6 }}>Look at the camera and press capture.</div>
-      <div style={{ position: 'relative', width: 200, height: 200, margin: '0 auto 20px', borderRadius: '50%', overflow: 'hidden', border: `3px solid ${selfieData ? 'var(--success)' : 'var(--ink)'}`, background: 'var(--ink)' }}>
-        {selfieData
-          ? <img src={selfieData} alt="selfie" style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }} />
-          : <video ref={videoRef} autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }} />}
-        {selfieData && (
-          <div style={{ position: 'absolute', bottom: 8, right: 8, width: 28, height: 28, borderRadius: '50%', background: 'var(--success)', border: '2px solid #fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <CheckCircle size={16} color="#fff" />
-          </div>
-        )}
-      </div>
-      {!selfieData && (
-        <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
-          <button className="btn btn-primary" onClick={onCapture} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Camera size={15} />Capture Photo
-          </button>
-          <button className="btn" style={{ borderStyle: 'dashed', fontSize: 12 }} onClick={onSkip}>Skip</button>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function ConfirmStep({ emp, selfieData, geoResult, loading, onMark, onBack }) {
+function ConfirmStep({ emp, geoResult, loading, onMark, onBack }) {
   if (!emp) return null;
   return (
     <div style={{ textAlign: 'center', padding: '8px 0 16px' }}>
@@ -286,19 +242,18 @@ function ConfirmStep({ emp, selfieData, geoResult, loading, onMark, onBack }) {
             <MapPin size={11} />GPS verified
           </span>
         )}
-        {selfieData
-          ? <span style={{ background: '#e8f5ee', border: '1px solid #b8dcc8', padding: '4px 10px', borderRadius: 2, fontSize: 11, fontFamily: 'DM Mono, monospace', color: 'var(--success)', display: 'flex', alignItems: 'center', gap: 4 }}><Camera size={11} />Photo taken</span>
-          : <span style={{ background: '#fff3cd', border: '1px solid #ffc107', padding: '4px 10px', borderRadius: 2, fontSize: 11, fontFamily: 'DM Mono, monospace', color: '#856404', display: 'flex', alignItems: 'center', gap: 4 }}><AlertTriangle size={11} />No photo</span>}
       </div>
-      {selfieData
-        ? <img src={selfieData} alt="selfie" style={{ width: 72, height: 72, borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--success)', margin: '0 auto 12px', display: 'block' }} />
-        : <div className="emp-avt" style={{ width: 72, height: 72, fontSize: 24, fontWeight: 800, margin: '0 auto 16px', borderRadius: 8 }}>{avt(emp.name)}</div>}
+      
+      <div className="emp-avt" style={{ width: 72, height: 72, fontSize: 24, fontWeight: 800, margin: '0 auto 16px', borderRadius: 8 }}>{avt(emp.name)}</div>
+      
       <div style={{ fontFamily: 'Syne, sans-serif', fontSize: 20, fontWeight: 800, marginBottom: 4 }}>{emp.name}</div>
       <div style={{ fontSize: 13, color: 'var(--ink2)', marginBottom: 20 }}>{emp.designation} · {emp.employeeCode}</div>
+      
       <div style={{ display: 'flex', gap: 12 }}>
         <ActionBtn color="var(--success)" icon={<LogIn size={22} />} label="CHECK IN" sub="Mark arrival" onClick={() => onMark('in')} disabled={loading} />
         <ActionBtn color="var(--danger)"  icon={<LogOut size={22} />} label="CHECK OUT" sub="Mark departure" onClick={() => onMark('out')} disabled={loading} />
       </div>
+      
       <button className="btn btn-full" style={{ marginTop: 12, borderStyle: 'dashed', fontWeight: 400, fontSize: 12 }} onClick={onBack}>← Change Name</button>
     </div>
   );
@@ -321,13 +276,21 @@ function DoneStep({ doneData, onHome }) {
   const { type, data, emp } = doneData;
   const att = data.attendance;
   const isIn = type === 'in';
+  const action = data.action || type;
+  
   return (
     <div style={{ textAlign: 'center', padding: '16px 0 8px' }}>
       <div className="pop-in" style={{ width: 80, height: 80, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px', background: isIn ? '#e8f5ee' : '#fdeee8', border: `2px solid ${isIn ? 'var(--success)' : 'var(--danger)'}` }}>
         {isIn ? <CheckCircle size={36} color="var(--success)" /> : <LogOut size={36} color="var(--danger)" />}
       </div>
-      <div style={{ fontFamily: 'Syne, sans-serif', fontSize: 26, fontWeight: 800, marginBottom: 4 }}>{isIn ? 'Welcome In!' : 'See You!'}</div>
-      <div style={{ fontSize: 15, color: 'var(--ink2)', marginBottom: 20 }}>{emp.name}</div>
+      <div style={{ fontFamily: 'Syne, sans-serif', fontSize: 26, fontWeight: 800, marginBottom: 4 }}>
+        {isIn ? 'Welcome In!' : 'See You Tomorrow!'}
+      </div>
+      <div style={{ fontSize: 15, color: 'var(--ink2)', marginBottom: 8 }}>{emp.name}</div>
+      <div style={{ fontSize: 12, color: 'var(--ink2)', marginBottom: 20, fontFamily: 'DM Mono, monospace' }}>
+        {action === 'punch-in' ? 'Punched In' : 'Punched Out'} • {new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+      </div>
+      
       <div style={{ display: 'flex', justifyContent: 'center', gap: 24, marginBottom: 16 }}>
         {att?.checkIn?.time && (
           <div style={{ textAlign: 'center' }}>
@@ -342,18 +305,29 @@ function DoneStep({ doneData, onHome }) {
           </div>
         )}
       </div>
+      
       {data.analysis?.hoursWorked && (
         <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 4, padding: '8px 18px', display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: 'DM Mono, monospace', fontSize: 13, marginBottom: 16 }}>
           <Clock size={13} />Total: {data.analysis.hoursWorked}
         </div>
       )}
-      {data.withinRadius && (
-        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 20 }}>
-          <span style={{ background: '#e8f5ee', border: '1px solid #b8dcc8', padding: '5px 12px', borderRadius: 2, fontSize: 11, fontFamily: 'DM Mono, monospace', color: 'var(--success)', display: 'flex', alignItems: 'center', gap: 5 }}>
-            <MapPin size={11} />{data.distance}m · GPS verified
+      
+      {data.isLate && (
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 16 }}>
+          <span style={{ background: '#fff3cd', border: '1px solid #ffc107', padding: '5px 12px', borderRadius: 2, fontSize: 11, fontFamily: 'DM Mono, monospace', color: '#856404', display: 'flex', alignItems: 'center', gap: 5 }}>
+            <Clock size={11} />Late by {data.lateBy}
           </span>
         </div>
       )}
+      
+      {data.withinRadius && (
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 20 }}>
+          <span style={{ background: '#e8f5ee', border: '1px solid #b8dcc8', padding: '5px 12px', borderRadius: 2, fontSize: 11, fontFamily: 'DM Mono, monospace', color: 'var(--success)', display: 'flex', alignItems: 'center', gap: 5 }}>
+            <MapPin size={11} />{data.distance}m • GPS verified
+          </span>
+        </div>
+      )}
+      
       <button className="btn btn-primary" onClick={onHome} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
         Done <Home size={14} />
       </button>
