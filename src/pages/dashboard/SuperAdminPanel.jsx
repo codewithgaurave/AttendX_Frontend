@@ -5,15 +5,13 @@ import api from '../../utils/api';
 import { avt } from '../../utils/api';
 import { toast } from '../../components/Toast';
 
-const emptyForm = { name: '', email: '', password: '', phone: '', companyName: '', accountType: 'demo', validityDays: 30, maxEmployees: 50, maxOffices: 5 };
+const emptyForm = { name: '', email: '', password: '', phone: '', companyName: '', accountType: 'demo', validityDays: 7, maxEmployees: 5, maxOffices: 1 };
 
 export default function SuperAdminPanel() {
   const [admins, setAdmins] = useState([]);
   const [subscription, setSubscription] = useState({});
   const [form, setForm] = useState(emptyForm);
   const [showModal, setShowModal] = useState(false);
-  const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
-  const [selectedAdmin, setSelectedAdmin] = useState(null);
   const [qrAdmin, setQrAdmin] = useState(null);
 
   const load = async () => {
@@ -37,23 +35,12 @@ export default function SuperAdminPanel() {
       return toast('Fill all fields');
     try {
       await api.post('/superadmin/admins', form);
-      toast('Admin created ✓'); setShowModal(false); setForm(emptyForm); load();
+      toast('Demo admin created ✓'); setShowModal(false); setForm(emptyForm); load();
     } catch (e) { 
       toast(e.response?.data?.message || 'Error');
       if (e.response?.data?.limitReached || e.response?.data?.expired) {
         setShowModal(false);
       }
-    }
-  };
-
-  const updateSubscription = async (adminId, subscriptionData) => {
-    try {
-      await api.put(`/superadmin/admins/${adminId}/subscription`, subscriptionData);
-      toast('Subscription updated successfully');
-      setShowSubscriptionModal(false);
-      load();
-    } catch (err) {
-      toast(err.response?.data?.message || 'Error updating subscription');
     }
   };
 
@@ -106,10 +93,6 @@ export default function SuperAdminPanel() {
             admin={a} 
             onToggle={toggle}
             onShowQR={setQrAdmin}
-            onUpdateSubscription={(admin) => {
-              setSelectedAdmin(admin);
-              setShowSubscriptionModal(true);
-            }}
             getDaysLeft={getDaysLeft}
           />
         ))}
@@ -126,15 +109,6 @@ export default function SuperAdminPanel() {
         />
       )}
 
-      {/* Subscription Modal */}
-      {showSubscriptionModal && selectedAdmin && (
-        <AdminSubscriptionModal 
-          admin={selectedAdmin}
-          onUpdate={updateSubscription}
-          onClose={() => setShowSubscriptionModal(false)}
-        />
-      )}
-
       {/* QR Modal */}
       {qrAdmin && (
         <QRModal admin={qrAdmin} onClose={() => setQrAdmin(null)} />
@@ -143,7 +117,7 @@ export default function SuperAdminPanel() {
   );
 }
 
-function AdminCard({ admin, onToggle, onShowQR, onUpdateSubscription, getDaysLeft }) {
+function AdminCard({ admin, onToggle, onShowQR, getDaysLeft }) {
   const daysLeft = getDaysLeft(admin.validUntil);
   const isExpired = admin.isExpired || daysLeft <= 0;
 
@@ -203,9 +177,6 @@ function AdminCard({ admin, onToggle, onShowQR, onUpdateSubscription, getDaysLef
         <button className="btn btn-sm" onClick={() => onShowQR(admin)} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
           <QrCode size={13} />QR
         </button>
-        <button className="btn btn-sm" onClick={() => onUpdateSubscription(admin)} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-          <Edit2 size={13} />Subscription
-        </button>
         <button 
           className={`btn btn-sm ${admin.isActive ? 'btn-danger' : 'btn-success'}`} 
           onClick={() => onToggle(admin._id, admin.name, admin.isActive)} 
@@ -213,6 +184,11 @@ function AdminCard({ admin, onToggle, onShowQR, onUpdateSubscription, getDaysLef
         >
           {admin.isActive ? <><ToggleLeft size={13} />Deactivate</> : <><ToggleRight size={13} />Activate</>}
         </button>
+        {admin.renewalRequested && (
+          <span style={{ fontSize: 11, color: 'var(--warning)', fontWeight: 600, padding: '4px 8px', background: 'var(--warning-bg)', borderRadius: 3 }}>
+            Renewal Requested
+          </span>
+        )}
       </div>
     </div>
   );
@@ -256,95 +232,21 @@ function CreateAdminModal({ form, setForm, onSave, onClose }) {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 16 }}>
           <div className="form-group">
             <label>Account Type</label>
-            <select className="form-inp" value={form.accountType} onChange={e => set('accountType', e.target.value)}>
+            <select className="form-inp" value={form.accountType} onChange={e => set('accountType', e.target.value)} disabled>
               <option value="demo">Demo (7 days)</option>
-              <option value="paid">Paid</option>
             </select>
           </div>
-          {form.accountType === 'paid' && (
-            <>
-              <div className="form-group">
-                <label>Validity (Days)</label>
-                <input className="form-inp" type="number" value={form.validityDays} onChange={e => set('validityDays', e.target.value)} />
-              </div>
-              <div className="form-group">
-                <label>Max Employees</label>
-                <input className="form-inp" type="number" value={form.maxEmployees} onChange={e => set('maxEmployees', e.target.value)} />
-              </div>
-            </>
-          )}
-        </div>
-        
-        {form.accountType === 'paid' && (
-          <div className="form-group" style={{ marginBottom: 16 }}>
-            <label>Max Offices</label>
-            <input className="form-inp" type="number" value={form.maxOffices} onChange={e => set('maxOffices', e.target.value)} />
+          <div className="form-group">
+            <label>Max Employees</label>
+            <input className="form-inp" type="number" value={5} disabled />
           </div>
-        )}
+          <div className="form-group">
+            <label>Max Offices</label>
+            <input className="form-inp" type="number" value={1} disabled />
+          </div>
+        </div>
         
         <button className="btn btn-primary btn-full" onClick={onSave}>Create Admin</button>
-      </div>
-    </div>
-  );
-}
-
-function AdminSubscriptionModal({ admin, onUpdate, onClose }) {
-  const [form, setForm] = useState({
-    accountType: 'paid',
-    validityDays: 30,
-    maxEmployees: admin.maxEmployees,
-    maxOffices: admin.maxOffices,
-    paymentAmount: '',
-    paymentMethod: 'cash'
-  });
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    onUpdate(admin._id, form);
-  };
-
-  return (
-    <div className="modal-overlay active" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="modal" style={{ maxWidth: 400 }}>
-        <div className="modal-title">
-          Update Subscription - {admin.name}
-          <button className="modal-close" onClick={onClose}>✕</button>
-        </div>
-        
-        <form onSubmit={handleSubmit}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
-            <div className="form-group">
-              <label>Validity (Days)</label>
-              <input className="form-inp" type="number" value={form.validityDays} onChange={e => setForm({...form, validityDays: e.target.value})} />
-            </div>
-            <div className="form-group">
-              <label>Max Employees</label>
-              <input className="form-inp" type="number" value={form.maxEmployees} onChange={e => setForm({...form, maxEmployees: e.target.value})} />
-            </div>
-          </div>
-          
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
-            <div className="form-group">
-              <label>Max Offices</label>
-              <input className="form-inp" type="number" value={form.maxOffices} onChange={e => setForm({...form, maxOffices: e.target.value})} />
-            </div>
-            <div className="form-group">
-              <label>Payment Method</label>
-              <select className="form-inp" value={form.paymentMethod} onChange={e => setForm({...form, paymentMethod: e.target.value})}>
-                <option value="cash">Cash</option>
-                <option value="online">Online</option>
-                <option value="cheque">Cheque</option>
-              </select>
-            </div>
-          </div>
-          
-          <div className="form-group" style={{ marginBottom: 16 }}>
-            <label>Payment Amount</label>
-            <input className="form-inp" type="number" value={form.paymentAmount} onChange={e => setForm({...form, paymentAmount: e.target.value})} />
-          </div>
-          
-          <button type="submit" className="btn btn-primary btn-full">Update Subscription</button>
-        </form>
       </div>
     </div>
   );
