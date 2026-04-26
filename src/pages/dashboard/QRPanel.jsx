@@ -15,12 +15,10 @@ export default function QRPanel() {
   const qrValue = JSON.stringify({ adminId: auth.user.id, companyName: admin?.companyName || '' });
 
   const steps = [
-    { icon: <QrCode size={14} />,      text: <>Open app → tap <strong>Scan QR</strong></> },
     { icon: <QrCode size={14} />,      text: <>Scan this QR code</> },
     { icon: <MapPin size={14} />,      text: <><strong>GPS check</strong> — must be within office radius</> },
-    { icon: <User size={14} />,        text: <>Tap your <strong>name</strong> from the list</> },
-    { icon: <Camera size={14} />,      text: <><strong>Take a selfie</strong></> },
-    { icon: <CheckSquare size={14} />, text: <>Press <strong>Check In</strong> or <strong>Check Out</strong></> },
+    { icon: <User size={14} />,        text: <>First time: <strong>Select name & set PIN</strong></> },
+    { icon: <CheckSquare size={14} />, text: <>Next times: <strong>Auto attendance</strong> after QR scan</> },
   ];
 
   return (

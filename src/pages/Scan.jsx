@@ -176,7 +176,7 @@ export default function Scan() {
             <ArrowLeft size={16} />
           </button>
           <div style={{ fontFamily: 'Syne, sans-serif', fontSize: 15, fontWeight: 700, flex: 1 }}>{LABELS[step]}</div>
-          {step !== 'done' && step !== 'blocked' && (
+          {step !== 'done' && step !== 'blocked' && step !== 'auto' && (
             <span style={{ fontFamily: 'DM Mono, monospace', fontSize: 11, color: 'var(--ink2)', background: 'var(--border)', padding: '3px 8px', borderRadius: 2 }}>
               {STEPS[step]} / 4
             </span>
@@ -184,11 +184,13 @@ export default function Scan() {
         </div>
 
         {/* Progress bar */}
-        <div style={{ display: 'flex', gap: 4, padding: '14px 18px 0' }}>
-          {[1,2,3,4].map(n => (
-            <div key={n} style={{ flex: 1, height: 3, borderRadius: 2, background: STEPS[step] > n ? 'var(--success)' : STEPS[step] === n ? 'var(--accent)' : 'var(--border)', transition: 'background 0.3s' }} />
-          ))}
-        </div>
+        {step !== 'auto' && (
+          <div style={{ display: 'flex', gap: 4, padding: '14px 18px 0' }}>
+            {[1,2,3,4].map(n => (
+              <div key={n} style={{ flex: 1, height: 3, borderRadius: 2, background: STEPS[step] > n ? 'var(--success)' : STEPS[step] === n ? 'var(--accent)' : 'var(--border)', transition: 'background 0.3s' }} />
+            ))}
+          </div>
+        )}
 
         <div style={{ padding: 20 }}>
           {step === 'camera'  && <CameraStep />}
