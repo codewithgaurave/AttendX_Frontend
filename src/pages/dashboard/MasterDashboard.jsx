@@ -315,8 +315,7 @@ function SuperAdminCard({ superAdmin, onUpdateSubscription, onDeactivate, onView
 
 function CreateSuperAdminModal({ onClose, onCreate }) {
   const [form, setForm] = useState({
-    name: '', email: '', password: '', phone: '', company: '',
-    accountType: 'demo', validityDays: 30, maxAdmins: 10
+    name: '', email: '', password: '', phone: '', company: ''
   });
 
   const handleSubmit = (e) => {
@@ -362,28 +361,6 @@ function CreateSuperAdminModal({ onClose, onCreate }) {
           <div className="form-group" style={{ marginBottom: 16 }}>
             <label>Company</label>
             <input className="form-inp" value={form.company} onChange={e => setForm({...form, company: e.target.value})} />
-          </div>
-          
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 16 }}>
-            <div className="form-group">
-              <label>Account Type</label>
-              <select className="form-inp" value={form.accountType} onChange={e => setForm({...form, accountType: e.target.value})}>
-                <option value="demo">Demo (7 days)</option>
-                <option value="paid">Paid</option>
-              </select>
-            </div>
-            {form.accountType === 'paid' && (
-              <>
-                <div className="form-group">
-                  <label>Validity (Days)</label>
-                  <input className="form-inp" type="number" value={form.validityDays} onChange={e => setForm({...form, validityDays: e.target.value})} />
-                </div>
-                <div className="form-group">
-                  <label>Max Admins</label>
-                  <input className="form-inp" type="number" value={form.maxAdmins} onChange={e => setForm({...form, maxAdmins: e.target.value})} />
-                </div>
-              </>
-            )}
           </div>
           
           <button type="submit" className="btn btn-primary btn-full">Create Super Admin</button>
