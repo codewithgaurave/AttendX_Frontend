@@ -11,7 +11,11 @@ export default function Salary() {
   const [loading, setLoading] = useState(false);
   const [downloading, setDownloading] = useState(false);
 
-  useEffect(() => { api.get('/admin/employees').then(r => setEmployees(r.data)); }, []);
+  useEffect(() => { 
+    api.get('/admin/employees').then(r => {
+      setEmployees(Array.isArray(r.data) ? r.data : []);
+    }).catch(() => setEmployees([]));
+  }, []);
 
   useEffect(() => {
     if (!selEmp) return;
@@ -65,7 +69,7 @@ export default function Salary() {
           {selEmp && <button className="btn btn-sm" onClick={() => { setSelEmp(null); setData(null); }}>✕ Clear</button>}
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px,1fr))' }}>
-          {employees.map(e => (
+          {Array.isArray(employees) ? employees.map(e => (
             <div key={e._id} onClick={() => setSelEmp(e)}
               style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', borderBottom: '1px solid rgba(216,208,192,0.3)', borderRight: '1px solid rgba(216,208,192,0.3)', cursor: 'pointer', background: selEmp?._id === e._id ? 'var(--ink)' : 'transparent', transition: 'background 0.15s' }}
               onMouseEnter={ev => { if (selEmp?._id !== e._id) ev.currentTarget.style.background = 'var(--surface2)'; }}
@@ -78,7 +82,10 @@ export default function Salary() {
                 </div>
               </div>
             </div>
-          ))}
+          )) : null}
+          {Array.isArray(employees) && employees.length === 0 && (
+            <div style={{ padding: '24px', textAlign: 'center', color: 'var(--ink2)', fontSize: 13 }}>No employees found</div>
+          )}
         </div>
       </div>
 

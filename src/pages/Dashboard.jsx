@@ -17,6 +17,7 @@ import SuperAdminPanel from './dashboard/SuperAdminPanel';
 import Holidays from './dashboard/Holidays';
 import Salary from './dashboard/Salary';
 import MasterDashboard from './dashboard/MasterDashboard';
+import OfficeWise from './dashboard/OfficeWise';
 
 // Bottom nav — only 4 tabs
 const BOTTOM_TABS = [

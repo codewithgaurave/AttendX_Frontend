@@ -5,20 +5,21 @@ import { avt, fmtDate, today } from '../../utils/api';
 import { exportMonthlyAttendance, exportRangeAttendance } from '../../utils/exportExcel';
 import { toast } from '../../components/Toast';
 import Swal from 'sweetalert2';
+import AttendanceCalendar from './AttendanceCalendar';
 import {
   CalendarDays, Calendar, BarChart2, ChevronDown, ChevronUp,
   MapPin, Clock, CheckCircle, XCircle, Loader, Inbox, ChevronRight, Camera, Download, Edit2
 } from 'lucide-react';
 
 const MODE_TABS = [
-  { id: 'date',    icon: <CalendarDays size={14} />, label: 'Date Wise' },
-  { id: 'monthly', icon: <Calendar size={14} />,     label: 'Monthly' },
-  { id: 'range',   icon: <BarChart2 size={14} />,    label: 'Date Range' },
+  { id: 'date',     icon: <CalendarDays size={14} />, label: 'Date Wise' },
+  { id: 'monthly',  icon: <Calendar size={14} />,     label: 'Monthly' },
+  { id: 'range',    icon: <BarChart2 size={14} />,    label: 'Date Range' },
 ];
 
 export default function AttendanceLog() {
   const { auth } = useAuth();
-  const [mode, setMode] = useState('date');
+  const [mode, setMode] = useState('monthly');
 
   return (
     <>
@@ -36,10 +37,301 @@ export default function AttendanceLog() {
         ))}
       </div>
 
-      {mode === 'date'    && <DateView    adminId={auth.user.id} />}
-      {mode === 'monthly' && <MonthlyView adminId={auth.user.id} />}
-      {mode === 'range'   && <RangeView   adminId={auth.user.id} />}
+      {mode === 'date'     && <DateView    adminId={auth.user.id} />}
+      {mode === 'monthly'  && <MonthlyView adminId={auth.user.id} />}
+      {mode === 'range'    && <RangeView   adminId={auth.user.id} />}
     </>
+  );
+}
+
+/* ── CALENDAR VIEW ── */
+function CalendarView({ adminId }) {
+  const [month, setMonth] = useState(today().slice(0, 7));
+  const [employees, setEmployees] = useState([]);
+  const [offices, setOffices] = useState([]);
+  const [selEmp, setSelEmp] = useState('all');
+  const [selOffice, setSelOffice] = useState('all');
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [selectedDate, setSelectedDate] = useState(null);
+
+  useEffect(() => { 
+    api.get('/admin/employees').then(r => setEmployees(Array.isArray(r.data) ? r.data : [])).catch(() => setEmployees([]));
+    api.get('/admin/offices').then(r => setOffices(Array.isArray(r.data) ? r.data : [])).catch(() => setOffices([]));
+  }, []);
+
+  const load = () => {
+    setLoading(true);
+    const empParam = selEmp !== 'all' ? `&employeeId=${selEmp}` : '';
+    const firstDay = `${month}-01`;
+    const lastDay = new Date(month.slice(0,4), parseInt(month.slice(5,7)), 0).toISOString().split('T')[0];
+    api.get(`/attendance/range/${adminId}?from=${firstDay}&to=${lastDay}${empParam}`)
+      .then(r => setData(r.data)).finally(() => setLoading(false));
+  };
+
+  useEffect(() => { load(); }, [month, selEmp]);
+
+  const chgMonth = (d) => {
+    const dt = new Date(month + '-01');
+    dt.setMonth(dt.getMonth() + d);
+    setMonth(dt.toISOString().slice(0, 7));
+  };
+
+  const monthLabel = new Date(month + '-01').toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+  
+  // Generate calendar days
+  const generateCalendarDays = () => {
+    const year = parseInt(month.slice(0, 4));
+    const monthNum = parseInt(month.slice(5, 7)) - 1;
+    const firstDay = new Date(year, monthNum, 1);
+    const lastDay = new Date(year, monthNum + 1, 0);
+    const startDate = new Date(firstDay);
+    startDate.setDate(startDate.getDate() - firstDay.getDay());
+
+    const days = [];
+    const current = new Date(startDate);
+
+    for (let i = 0; i < 42; i++) {
+      days.push(new Date(current));
+      current.setDate(current.getDate() + 1);
+    }
+
+    return days;
+  };
+
+  const getDayData = (date) => {
+    const dateStr = date.toISOString().split('T')[0];
+    return data?.dailySummary?.find(day => day.date === dateStr);
+  };
+
+  const isCurrentMonth = (date) => {
+    const monthNum = parseInt(month.slice(5, 7)) - 1;
+    return date.getMonth() === monthNum;
+  };
+
+  const isToday = (date) => {
+    const today = new Date();
+    return date.toDateString() === today.toDateString();
+  };
+
+  const days = generateCalendarDays();
+  const selectedDayData = selectedDate ? getDayData(selectedDate) : null;
+
+  return (
+    <>
+      {/* Controls */}
+      <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: 20 }}>
+        <div>
+          <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink2)', textTransform: 'uppercase', letterSpacing: 0.5, display: 'block', marginBottom: 6 }}>Month</label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <NavBtn onClick={() => chgMonth(-1)}><ChevronDown size={14} style={{ transform: 'rotate(90deg)' }} /></NavBtn>
+            <input className="form-inp" type="month" value={month} onChange={e => setMonth(e.target.value)} style={{ maxWidth: 180 }} />
+            <NavBtn onClick={() => chgMonth(1)}><ChevronDown size={14} style={{ transform: 'rotate(-90deg)' }} /></NavBtn>
+          </div>
+        </div>
+        <div>
+          <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink2)', textTransform: 'uppercase', letterSpacing: 0.5, display: 'block', marginBottom: 6 }}>Employee</label>
+          <select className="form-inp" value={selEmp} onChange={e => setSelEmp(e.target.value)} style={{ maxWidth: 220 }}>
+            <option value="all">All Employees</option>
+            {Array.isArray(employees) ? employees.map(e => <option key={e._id} value={e._id}>{e.name}</option>) : null}
+          </select>
+        </div>
+        {offices.length > 1 && (
+          <div>
+            <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink2)', textTransform: 'uppercase', letterSpacing: 0.5, display: 'block', marginBottom: 6 }}>Office</label>
+            <select className="form-inp" value={selOffice} onChange={e => setSelOffice(e.target.value)} style={{ maxWidth: 200 }}>
+              <option value="all">All Offices</option>
+              {offices.map(o => <option key={o._id} value={o._id}>{o.name}</option>)}
+            </select>
+          </div>
+        )}
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: selectedDate ? '2fr 1fr' : '1fr', gap: 20 }}>
+        {/* Calendar Grid */}
+        <div>
+          <div style={{ background: 'var(--surface)', border: '1.5px solid var(--border)', borderRadius: 4, overflow: 'hidden' }}>
+            {/* Calendar Header */}
+            <div style={{ background: 'var(--ink)', color: 'var(--bg)', padding: '16px 20px', textAlign: 'center' }}>
+              <div style={{ fontFamily: 'Syne, sans-serif', fontSize: 18, fontWeight: 800 }}>{monthLabel}</div>
+            </div>
+            
+            {/* Days Header */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', background: 'var(--surface2)' }}>
+              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+                <div key={day} style={{ padding: '10px 8px', textAlign: 'center', fontSize: 11, fontWeight: 700, color: 'var(--ink2)', textTransform: 'uppercase', letterSpacing: 1 }}>
+                  {day}
+                </div>
+              ))}
+            </div>
+
+            {/* Calendar Days */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
+              {days.map((date, index) => {
+                const dayData = getDayData(date);
+                const isCurrentMonthDay = isCurrentMonth(date);
+                const isTodayDate = isToday(date);
+                const isSelected = selectedDate && date.toDateString() === selectedDate.toDateString();
+                
+                return (
+                  <CalendarDayCell
+                    key={index}
+                    date={date}
+                    dayData={dayData}
+                    isCurrentMonth={isCurrentMonthDay}
+                    isToday={isTodayDate}
+                    isSelected={isSelected}
+                    onClick={() => setSelectedDate(date)}
+                    loading={loading}
+                  />
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        {/* Selected Day Details */}
+        {selectedDate && (
+          <div>
+            <div className="tbl-wrap">
+              <div className="tbl-head-row">
+                <div className="tbl-title">{fmtDate(selectedDate.toISOString().split('T')[0])}</div>
+                <button className="btn btn-sm" onClick={() => setSelectedDate(null)}>✕</button>
+              </div>
+              
+              {selectedDayData ? (
+                <>
+                  {/* Day Stats */}
+                  <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)' }}>
+                    <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
+                      <span style={{ background: '#e8f5ee', border: '1px solid #b8dcc8', padding: '4px 10px', borderRadius: 3, fontSize: 11, fontFamily: 'DM Mono, monospace', color: 'var(--success)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <CheckCircle size={11} />{selectedDayData.present} Present
+                      </span>
+                      <span style={{ background: '#fdeee8', border: '1px solid #f0c0b0', padding: '4px 10px', borderRadius: 3, fontSize: 11, fontFamily: 'DM Mono, monospace', color: 'var(--danger)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <XCircle size={11} />{selectedDayData.absent} Absent
+                      </span>
+                      {selectedDayData.halfDay > 0 && (
+                        <span style={{ background: '#fff8e8', border: '1px solid #f0d090', padding: '4px 10px', borderRadius: 3, fontSize: 11, fontFamily: 'DM Mono, monospace', color: 'var(--warning)' }}>
+                          {selectedDayData.halfDay} Half
+                        </span>
+                      )}
+                      {selectedDayData.late > 0 && (
+                        <span style={{ background: '#fff8e8', border: '1px solid #f0d090', padding: '4px 10px', borderRadius: 3, fontSize: 11, fontFamily: 'DM Mono, monospace', color: 'var(--warning)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <Clock size={11} />{selectedDayData.late} Late
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Employee Records */}
+                  {selectedDayData.records.length > 0 ? (
+                    <div style={{ maxHeight: 400, overflowY: 'auto' }}>
+                      <MiniTable rows={selectedDayData.records.filter(r => selOffice === 'all' || r.office === offices.find(o => o._id === selOffice)?.name)} />
+                    </div>
+                  ) : (
+                    <div style={{ padding: '20px', textAlign: 'center', color: 'var(--ink2)', fontSize: 13 }}>No records for this day</div>
+                  )}
+                </>
+              ) : (
+                <div style={{ padding: '20px', textAlign: 'center', color: 'var(--ink2)', fontSize: 13 }}>No data available</div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {loading && (
+        <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', background: 'rgba(255,255,255,0.9)', padding: '20px', borderRadius: 4, display: 'flex', alignItems: 'center', gap: 8, zIndex: 1000 }}>
+          <Loader size={16} />Loading calendar...
+        </div>
+      )}
+    </>
+  );
+}
+
+function CalendarDayCell({ date, dayData, isCurrentMonth, isToday, isSelected, onClick, loading }) {
+  const dayNumber = date.getDate();
+  
+  const getStatusColor = () => {
+    if (!dayData || !dayData.records.length) return '#e5e7eb';
+    const total = dayData.present + dayData.absent + dayData.halfDay;
+    if (total === 0) return '#e5e7eb';
+    const presentPercentage = (dayData.present / total) * 100;
+    if (presentPercentage >= 90) return '#22c55e';
+    if (presentPercentage >= 70) return '#84cc16';
+    if (presentPercentage >= 50) return '#f59e0b';
+    return '#ef4444';
+  };
+
+  return (
+    <div
+      onClick={onClick}
+      style={{
+        minHeight: 80,
+        padding: '8px',
+        border: '1px solid var(--border)',
+        background: isSelected ? 'var(--accent)' : isCurrentMonth ? 'var(--surface)' : 'var(--surface2)',
+        opacity: isCurrentMonth ? 1 : 0.6,
+        cursor: dayData ? 'pointer' : 'default',
+        transition: 'all 0.15s',
+        position: 'relative'
+      }}
+      onMouseEnter={e => {
+        if (dayData && !isSelected) {
+          e.currentTarget.style.background = 'var(--surface2)';
+          e.currentTarget.style.borderColor = 'var(--ink)';
+        }
+      }}
+      onMouseLeave={e => {
+        if (!isSelected) {
+          e.currentTarget.style.background = isCurrentMonth ? 'var(--surface)' : 'var(--surface2)';
+          e.currentTarget.style.borderColor = 'var(--border)';
+        }
+      }}
+    >
+      {/* Date number */}
+      <div style={{
+        fontSize: 14,
+        fontWeight: isToday ? 800 : 600,
+        color: isSelected ? 'white' : isToday ? 'var(--accent)' : 'var(--ink)',
+        marginBottom: 4
+      }}>
+        {dayNumber}
+      </div>
+
+      {/* Status bar */}
+      {dayData && dayData.records.length > 0 && (
+        <div style={{
+          width: '100%',
+          height: 4,
+          borderRadius: 2,
+          background: getStatusColor(),
+          marginBottom: 4
+        }} />
+      )}
+
+      {/* Quick stats */}
+      {dayData && (
+        <div style={{ fontSize: 9, color: isSelected ? 'rgba(255,255,255,0.8)' : 'var(--ink2)' }}>
+          {dayData.present > 0 && <div>✓ {dayData.present}</div>}
+          {dayData.absent > 0 && <div>✗ {dayData.absent}</div>}
+          {dayData.late > 0 && <div>⏰ {dayData.late}</div>}
+        </div>
+      )}
+
+      {/* Today indicator */}
+      {isToday && !isSelected && (
+        <div style={{
+          position: 'absolute',
+          top: 4,
+          right: 4,
+          width: 6,
+          height: 6,
+          borderRadius: '50%',
+          background: 'var(--accent)'
+        }} />
+      )}
+    </div>
   );
 }
 
@@ -53,8 +345,8 @@ function DateView({ adminId }) {
   const [employees, setEmployees] = useState([]);
 
   useEffect(() => { 
-    api.get('/admin/offices').then(r => setOffices(r.data));
-    api.get('/admin/employees').then(r => setEmployees(r.data));
+    api.get('/admin/offices').then(r => setOffices(r.data || []));
+    api.get('/admin/employees').then(r => setEmployees(r.data || []));
   }, []);
 
   useEffect(() => {
@@ -81,7 +373,7 @@ function DateView({ adminId }) {
 
   const markAbsentEmployees = async () => {
     const absentEmpIds = absent.map(a => a.employeeId);
-    const notMarked = employees.filter(e => !present.find(p => p.employeeId === e._id) && !absentEmpIds.includes(e._id));
+    const notMarked = (employees || []).filter(e => !present.find(p => p.employeeId === e._id) && !absentEmpIds.includes(e._id));
     
     if (notMarked.length === 0) {
       toast('All employees already marked');
@@ -148,11 +440,16 @@ function MonthlyView({ adminId }) {
   const [selOffice, setSelOffice] = useState('all');
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [expanded, setExpanded] = useState(null);
+  const [viewMode, setViewMode] = useState('calendar'); // calendar or list
+  const [selectedDate, setSelectedDate] = useState(null);
 
   useEffect(() => { 
-    api.get('/admin/employees').then(r => setEmployees(r.data));
-    api.get('/admin/offices').then(r => setOffices(r.data));
+    api.get('/admin/employees').then(r => {
+      setEmployees(Array.isArray(r.data) ? r.data : []);
+    }).catch(() => setEmployees([]));
+    api.get('/admin/offices').then(r => {
+      setOffices(Array.isArray(r.data) ? r.data : []);
+    }).catch(() => setOffices([]));
   }, []);
 
   const load = () => {
@@ -183,6 +480,43 @@ function MonthlyView({ adminId }) {
     exportMonthlyAttendance(filteredDaily, employees, month, overall);
   };
 
+  // Calendar functions
+  const generateCalendarDays = () => {
+    const year = parseInt(month.slice(0, 4));
+    const monthNum = parseInt(month.slice(5, 7)) - 1;
+    const firstDay = new Date(year, monthNum, 1);
+    const startDate = new Date(firstDay);
+    startDate.setDate(startDate.getDate() - firstDay.getDay());
+
+    const days = [];
+    const current = new Date(startDate);
+
+    for (let i = 0; i < 42; i++) {
+      days.push(new Date(current));
+      current.setDate(current.getDate() + 1);
+    }
+
+    return days;
+  };
+
+  const getDayData = (date) => {
+    const dateStr = date.toISOString().split('T')[0];
+    return data?.dailySummary?.find(day => day.date === dateStr);
+  };
+
+  const isCurrentMonth = (date) => {
+    const monthNum = parseInt(month.slice(5, 7)) - 1;
+    return date.getMonth() === monthNum;
+  };
+
+  const isToday = (date) => {
+    const today = new Date();
+    return date.toDateString() === today.toDateString();
+  };
+
+  const days = generateCalendarDays();
+  const selectedDayData = selectedDate ? getDayData(selectedDate) : null;
+
   return (
     <>
       <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: 20 }}>
@@ -198,7 +532,7 @@ function MonthlyView({ adminId }) {
           <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink2)', textTransform: 'uppercase', letterSpacing: 0.5, display: 'block', marginBottom: 6 }}>Employee</label>
           <select className="form-inp" value={selEmp} onChange={e => setSelEmp(e.target.value)} style={{ maxWidth: 220 }}>
             <option value="all">All Employees</option>
-            {employees.map(e => <option key={e._id} value={e._id}>{e.name}</option>)}
+            {Array.isArray(employees) ? employees.map(e => <option key={e._id} value={e._id}>{e.name}</option>) : null}
           </select>
         </div>
         {offices.length > 1 && (
@@ -210,22 +544,88 @@ function MonthlyView({ adminId }) {
             </select>
           </div>
         )}
-        <button className="btn btn-primary" onClick={handleExport} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <Download size={14} />Export
-        </button>
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+          <div style={{ display: 'flex', background: 'var(--surface2)', padding: 2, borderRadius: 4, border: '1px solid var(--border)' }}>
+            <button onClick={() => setViewMode('calendar')} 
+              style={{ padding: '6px 12px', border: 'none', background: viewMode === 'calendar' ? 'var(--ink)' : 'transparent', color: viewMode === 'calendar' ? 'var(--bg)' : 'var(--ink2)', borderRadius: 3, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
+              Calendar
+            </button>
+            <button onClick={() => setViewMode('list')} 
+              style={{ padding: '6px 12px', border: 'none', background: viewMode === 'list' ? 'var(--ink)' : 'transparent', color: viewMode === 'list' ? 'var(--bg)' : 'var(--ink2)', borderRadius: 3, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
+              List
+            </button>
+          </div>
+          <button className="btn btn-primary" onClick={handleExport} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Download size={14} />Export
+          </button>
+        </div>
       </div>
 
       {overall && <OverallStats overall={overall} />}
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {loading && <EmptyState icon={<Loader size={32} />} text="Loading…" />}
-        {!loading && data?.dailySummary?.map(day => (
-          <DayAccordion key={day.date} day={day} expanded={expanded} setExpanded={setExpanded} />
-        ))}
-        {!loading && data?.dailySummary?.length === 0 && (
-          <EmptyState icon={<Inbox size={32} />} text={`No data for ${monthLabel}`} />
-        )}
-      </div>
+      {viewMode === 'calendar' ? (
+        <div>
+          {/* Calendar Grid */}
+          <div style={{ background: 'var(--surface)', border: '1.5px solid var(--border)', borderRadius: 4, overflow: 'hidden' }}>
+            {/* Calendar Header */}
+            <div style={{ background: 'var(--ink)', color: 'var(--bg)', padding: '16px 20px', textAlign: 'center' }}>
+              <div style={{ fontFamily: 'Syne, sans-serif', fontSize: 18, fontWeight: 800 }}>{monthLabel}</div>
+            </div>
+            
+            {/* Days Header */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', background: 'var(--surface2)' }}>
+              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+                <div key={day} style={{ padding: '10px 8px', textAlign: 'center', fontSize: 11, fontWeight: 700, color: 'var(--ink2)', textTransform: 'uppercase', letterSpacing: 1 }}>
+                  {day}
+                </div>
+              ))}
+            </div>
+
+            {/* Calendar Days */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
+              {days.map((date, index) => {
+                const dayData = getDayData(date);
+                const isCurrentMonthDay = isCurrentMonth(date);
+                const isTodayDate = isToday(date);
+                
+                return (
+                  <CalendarDayCell
+                    key={index}
+                    date={date}
+                    dayData={dayData}
+                    isCurrentMonth={isCurrentMonthDay}
+                    isToday={isTodayDate}
+                    isSelected={false}
+                    onClick={() => {
+                      const dayData = getDayData(date);
+                      if (dayData) {
+                        showDayDetailsModal(date, dayData, offices, selOffice);
+                      }
+                    }}
+                    loading={loading}
+                  />
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {loading && <EmptyState icon={<Loader size={32} />} text="Loading…" />}
+          {!loading && data?.dailySummary?.map(day => (
+            <DayAccordion key={day.date} day={day} expanded={null} setExpanded={() => {}} />
+          ))}
+          {!loading && data?.dailySummary?.length === 0 && (
+            <EmptyState icon={<Inbox size={32} />} text={`No data for ${monthLabel}`} />
+          )}
+        </div>
+      )}
+
+      {loading && (
+        <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', background: 'rgba(255,255,255,0.9)', padding: '20px', borderRadius: 4, display: 'flex', alignItems: 'center', gap: 8, zIndex: 1000 }}>
+          <Loader size={16} />Loading calendar...
+        </div>
+      )}
     </>
   );
 }
@@ -240,11 +640,16 @@ function RangeView({ adminId }) {
   const [selOffice, setSelOffice] = useState('all');
   const [data, setData]   = useState(null);
   const [loading, setLoading] = useState(false);
-  const [expanded, setExpanded] = useState(null);
+  const [viewMode, setViewMode] = useState('calendar'); // calendar or list
+  const [selectedDate, setSelectedDate] = useState(null);
 
   useEffect(() => { 
-    api.get('/admin/employees').then(r => setEmployees(r.data));
-    api.get('/admin/offices').then(r => setOffices(r.data));
+    api.get('/admin/employees').then(r => {
+      setEmployees(Array.isArray(r.data) ? r.data : []);
+    }).catch(() => setEmployees([]));
+    api.get('/admin/offices').then(r => {
+      setOffices(Array.isArray(r.data) ? r.data : []);
+    }).catch(() => setOffices([]));
   }, []);
 
   const load = () => {
@@ -265,6 +670,35 @@ function RangeView({ adminId }) {
     exportRangeAttendance(filteredDaily, employees, from, to, overall);
   };
 
+  // Calendar functions for range view
+  const generateRangeCalendarDays = () => {
+    if (!from || !to) return [];
+    const startDate = new Date(from);
+    const endDate = new Date(to);
+    const days = [];
+    const current = new Date(startDate);
+
+    while (current <= endDate) {
+      days.push(new Date(current));
+      current.setDate(current.getDate() + 1);
+    }
+
+    return days;
+  };
+
+  const getDayData = (date) => {
+    const dateStr = date.toISOString().split('T')[0];
+    return data?.dailySummary?.find(day => day.date === dateStr);
+  };
+
+  const isToday = (date) => {
+    const today = new Date();
+    return date.toDateString() === today.toDateString();
+  };
+
+  const days = generateRangeCalendarDays();
+  const selectedDayData = selectedDate ? getDayData(selectedDate) : null;
+
   return (
     <>
       <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: 20 }}>
@@ -280,7 +714,7 @@ function RangeView({ adminId }) {
           <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink2)', textTransform: 'uppercase', letterSpacing: 0.5, display: 'block', marginBottom: 6 }}>Employee</label>
           <select className="form-inp" value={selEmp} onChange={e => setSelEmp(e.target.value)} style={{ maxWidth: 200 }}>
             <option value="all">All Employees</option>
-            {employees.map(e => <option key={e._id} value={e._id}>{e.name}</option>)}
+            {Array.isArray(employees) ? employees.map(e => <option key={e._id} value={e._id}>{e.name}</option>) : null}
           </select>
         </div>
         {offices.length > 1 && (
@@ -295,25 +729,130 @@ function RangeView({ adminId }) {
         <button className="btn btn-primary" onClick={load} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           Apply <ChevronRight size={14} />
         </button>
-        {data && <button className="btn btn-primary" onClick={handleExport} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <Download size={14} />Export
-        </button>}
+        {data && (
+          <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{ display: 'flex', background: 'var(--surface2)', padding: 2, borderRadius: 4, border: '1px solid var(--border)' }}>
+              <button onClick={() => setViewMode('calendar')} 
+                style={{ padding: '6px 12px', border: 'none', background: viewMode === 'calendar' ? 'var(--ink)' : 'transparent', color: viewMode === 'calendar' ? 'var(--bg)' : 'var(--ink2)', borderRadius: 3, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
+                Calendar
+              </button>
+              <button onClick={() => setViewMode('list')} 
+                style={{ padding: '6px 12px', border: 'none', background: viewMode === 'list' ? 'var(--ink)' : 'transparent', color: viewMode === 'list' ? 'var(--bg)' : 'var(--ink2)', borderRadius: 3, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
+                List
+              </button>
+            </div>
+            <button className="btn btn-primary" onClick={handleExport} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Download size={14} />Export
+            </button>
+          </div>
+        )}
       </div>
 
       {overall && <OverallStats overall={overall} />}
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {loading && <EmptyState icon={<Loader size={32} />} text="Loading…" />}
-        {!loading && data?.dailySummary?.map(day => (
-          <DayAccordion key={day.date} day={day} expanded={expanded} setExpanded={setExpanded} />
-        ))}
-        {!loading && data?.dailySummary?.length === 0 && (
-          <EmptyState icon={<Inbox size={32} />} text="No data for selected range" />
-        )}
-        {!data && !loading && (
+      {data && viewMode === 'calendar' ? (
+        <div style={{ display: 'grid', gridTemplateColumns: selectedDate ? '2fr 1fr' : '1fr', gap: 20 }}>
+          {/* Calendar Grid for Range */}
+          <div>
+            <div style={{ background: 'var(--surface)', border: '1.5px solid var(--border)', borderRadius: 4, overflow: 'hidden' }}>
+              <div style={{ background: 'var(--ink)', color: 'var(--bg)', padding: '16px 20px', textAlign: 'center' }}>
+                <div style={{ fontFamily: 'Syne, sans-serif', fontSize: 18, fontWeight: 800 }}>
+                  {fmtDate(from)} - {fmtDate(to)}
+                </div>
+              </div>
+              
+              {/* Range Calendar Days */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 1, padding: 8 }}>
+                {days.map((date, index) => {
+                  const dayData = getDayData(date);
+                  const isTodayDate = isToday(date);
+                  const isSelected = selectedDate && date.toDateString() === selectedDate.toDateString();
+                  
+                  return (
+                    <CalendarDayCell
+                      key={index}
+                      date={date}
+                      dayData={dayData}
+                      isCurrentMonth={true}
+                      isToday={isTodayDate}
+                      isSelected={isSelected}
+                      onClick={() => setSelectedDate(date)}
+                      loading={loading}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* Selected Day Details */}
+          {selectedDate && (
+            <div>
+              <div className="tbl-wrap">
+                <div className="tbl-head-row">
+                  <div className="tbl-title">{fmtDate(selectedDate.toISOString().split('T')[0])}</div>
+                  <button className="btn btn-sm" onClick={() => setSelectedDate(null)}>✕</button>
+                </div>
+                
+                {selectedDayData ? (
+                  <>
+                    <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)' }}>
+                      <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
+                        <span style={{ background: '#e8f5ee', border: '1px solid #b8dcc8', padding: '4px 10px', borderRadius: 3, fontSize: 11, fontFamily: 'DM Mono, monospace', color: 'var(--success)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <CheckCircle size={11} />{selectedDayData.present} Present
+                        </span>
+                        <span style={{ background: '#fdeee8', border: '1px solid #f0c0b0', padding: '4px 10px', borderRadius: 3, fontSize: 11, fontFamily: 'DM Mono, monospace', color: 'var(--danger)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <XCircle size={11} />{selectedDayData.absent} Absent
+                        </span>
+                        {selectedDayData.halfDay > 0 && (
+                          <span style={{ background: '#fff8e8', border: '1px solid #f0d090', padding: '4px 10px', borderRadius: 3, fontSize: 11, fontFamily: 'DM Mono, monospace', color: 'var(--warning)' }}>
+                            {selectedDayData.halfDay} Half
+                          </span>
+                        )}
+                        {selectedDayData.late > 0 && (
+                          <span style={{ background: '#fff8e8', border: '1px solid #f0d090', padding: '4px 10px', borderRadius: 3, fontSize: 11, fontFamily: 'DM Mono, monospace', color: 'var(--warning)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <Clock size={11} />{selectedDayData.late} Late
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {selectedDayData.records.length > 0 ? (
+                      <div style={{ maxHeight: 400, overflowY: 'auto' }}>
+                        <MiniTable rows={selectedDayData.records.filter(r => selOffice === 'all' || r.office === offices.find(o => o._id === selOffice)?.name)} />
+                      </div>
+                    ) : (
+                      <div style={{ padding: '20px', textAlign: 'center', color: 'var(--ink2)', fontSize: 13 }}>No records for this day</div>
+                    )}
+                  </>
+                ) : (
+                  <div style={{ padding: '20px', textAlign: 'center', color: 'var(--ink2)', fontSize: 13 }}>No data available</div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      ) : data && viewMode === 'list' ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {loading && <EmptyState icon={<Loader size={32} />} text="Loading…" />}
+          {!loading && data?.dailySummary?.map(day => (
+            <DayAccordion key={day.date} day={day} expanded={null} setExpanded={() => {}} />
+          ))}
+          {!loading && data?.dailySummary?.length === 0 && (
+            <EmptyState icon={<Inbox size={32} />} text="No data for selected range" />
+          )}
+        </div>
+      ) : (
+        !data && !loading && (
           <EmptyState icon={<BarChart2 size={32} />} text="Select range and click Apply" />
-        )}
-      </div>
+        )
+      )}
+
+      {loading && (
+        <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', background: 'rgba(255,255,255,0.9)', padding: '20px', borderRadius: 4, display: 'flex', alignItems: 'center', gap: 8, zIndex: 1000 }}>
+          <Loader size={16} />Loading calendar...
+        </div>
+      )}
     </>
   );
 }
@@ -404,6 +943,119 @@ function Pill({ bg, border, color, children }) {
   );
 }
 
+function showDayDetailsModal(date, dayData, offices, selOffice) {
+  const filteredRecords = dayData.records.filter(r => selOffice === 'all' || r.office === offices.find(o => o._id === selOffice)?.name);
+  
+  const statsHtml = `
+    <div style="display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; justify-content: center;">
+      <span style="background: #e8f5ee; border: 1px solid #b8dcc8; padding: 8px 12px; border-radius: 6px; font-size: 13px; font-family: 'DM Mono', monospace; color: #22c55e; display: flex; align-items: center; gap: 6px; font-weight: 600;">
+        ✓ ${dayData.present} Present
+      </span>
+      <span style="background: #fdeee8; border: 1px solid #f0c0b0; padding: 8px 12px; border-radius: 6px; font-size: 13px; font-family: 'DM Mono', monospace; color: #ef4444; display: flex; align-items: center; gap: 6px; font-weight: 600;">
+        ✗ ${dayData.absent} Absent
+      </span>
+      ${dayData.halfDay > 0 ? `<span style="background: #fff8e8; border: 1px solid #f0d090; padding: 8px 12px; border-radius: 6px; font-size: 13px; font-family: 'DM Mono', monospace; color: #f59e0b; font-weight: 600;">${dayData.halfDay} Half</span>` : ''}
+      ${dayData.late > 0 ? `<span style="background: #fff8e8; border: 1px solid #f0d090; padding: 8px 12px; border-radius: 6px; font-size: 13px; font-family: 'DM Mono', monospace; color: #f59e0b; font-weight: 600;">⏰ ${dayData.late} Late</span>` : ''}
+    </div>
+  `;
+
+  const tableHtml = filteredRecords.length > 0 ? `
+    <div style="border: 1.5px solid #d1d5db; border-radius: 8px; background: white; overflow: hidden;">
+      <div style="max-height: 400px; overflow-y: auto; overflow-x: auto;">
+        <table style="width: 100%; min-width: 800px; border-collapse: collapse; font-size: 14px;">
+          <thead style="position: sticky; top: 0; background: #f8fafc; z-index: 10; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+            <tr>
+              <th style="min-width: 200px; text-align: left; padding: 12px 16px; border-bottom: 2px solid #e5e7eb; font-weight: 700; color: #374151; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Employee</th>
+              <th style="min-width: 120px; text-align: left; padding: 12px 16px; border-bottom: 2px solid #e5e7eb; font-weight: 700; color: #374151; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Check In</th>
+              <th style="min-width: 120px; text-align: left; padding: 12px 16px; border-bottom: 2px solid #e5e7eb; font-weight: 700; color: #374151; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Check Out</th>
+              <th style="min-width: 100px; text-align: left; padding: 12px 16px; border-bottom: 2px solid #e5e7eb; font-weight: 700; color: #374151; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Hours</th>
+              <th style="min-width: 100px; text-align: left; padding: 12px 16px; border-bottom: 2px solid #e5e7eb; font-weight: 700; color: #374151; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Late</th>
+              <th style="min-width: 120px; text-align: left; padding: 12px 16px; border-bottom: 2px solid #e5e7eb; font-weight: 700; color: #374151; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;">GPS</th>
+              <th style="min-width: 100px; text-align: left; padding: 12px 16px; border-bottom: 2px solid #e5e7eb; font-weight: 700; color: #374151; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${filteredRecords.map((r, index) => `
+              <tr style="border-bottom: 1px solid #f1f5f9; ${index % 2 === 0 ? 'background: #fafbfc;' : 'background: white;'}">
+                <td style="padding: 12px 16px; vertical-align: middle; min-width: 200px;">
+                  <div style="display: flex; align-items: center; gap: 10px;">
+                    <div style="width: 28px; height: 28px; border-radius: 50%; background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; flex-shrink: 0;">
+                      ${r.name ? r.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : 'NA'}
+                    </div>
+                    <div style="min-width: 0;">
+                      <div style="font-weight: 600; color: #1f2937; font-size: 13px; line-height: 1.3; white-space: nowrap;">${r.name || 'Unknown'}</div>
+                      <div style="font-size: 11px; color: #6b7280; font-family: 'DM Mono', monospace; margin-top: 1px;">${r.employeeCode || ''}</div>
+                    </div>
+                  </div>
+                </td>
+                <td style="padding: 12px 16px; font-family: 'DM Mono', monospace; font-size: 12px; font-weight: 500; vertical-align: middle; min-width: 120px;">
+                  ${r.checkInTime ? `<div style="background: #ecfdf5; padding: 6px 8px; border-radius: 4px; border: 1px solid #d1fae5; color: #059669; text-align: center; font-size: 11px; white-space: nowrap;">${r.checkInTime}</div>` : '<span style="color: #9ca3af;">—</span>'}
+                </td>
+                <td style="padding: 12px 16px; font-family: 'DM Mono', monospace; font-size: 12px; font-weight: 500; vertical-align: middle; min-width: 120px;">
+                  ${r.checkOutTime ? `<div style="background: #fef2f2; padding: 6px 8px; border-radius: 4px; border: 1px solid #fecaca; color: #dc2626; text-align: center; font-size: 11px; white-space: nowrap;">${r.checkOutTime}</div>` : '<span style="color: #9ca3af;">—</span>'}
+                </td>
+                <td style="padding: 12px 16px; font-family: 'DM Mono', monospace; font-size: 12px; font-weight: 600; vertical-align: middle; min-width: 100px;">
+                  ${r.hoursWorked ? `<div style="background: #ecfdf5; padding: 6px 8px; border-radius: 4px; border: 1px solid #d1fae5; color: #059669; text-align: center; font-size: 11px; white-space: nowrap;">${r.hoursWorked}</div>` : 
+                    (r.checkInTime && !r.checkOutTime ? '<div style="color: #f59e0b; background: #fffbeb; padding: 6px 8px; border-radius: 4px; border: 1px solid #fde68a; text-align: center; font-size: 11px; white-space: nowrap;">Working…</div>' : '<span style="color: #9ca3af;">—</span>')}
+                </td>
+                <td style="padding: 12px 16px; font-family: 'DM Mono', monospace; font-size: 12px; font-weight: 500; vertical-align: middle; min-width: 100px; color: #f59e0b;">
+                  ${r.isLate && r.lateBy ? `<div style="background: #fffbeb; padding: 6px 8px; border-radius: 4px; border: 1px solid #fde68a; text-align: center; font-size: 11px; white-space: nowrap;">${r.lateBy}</div>` : '<span style="color: #9ca3af;">—</span>'}
+                </td>
+                <td style="padding: 12px 16px; vertical-align: middle; min-width: 120px;">
+                  ${r.checkInLocation && r.checkInDistance ? `<div style="background: #ecfdf5; padding: 6px 8px; border-radius: 4px; border: 1px solid #d1fae5; color: #059669; text-align: center; font-size: 11px; white-space: nowrap; display: flex; align-items: center; justify-content: center; gap: 4px;">📍 ${r.checkInDistance}m</div>` : '<span style="color: #9ca3af;">—</span>'}
+                </td>
+                <td style="padding: 12px 16px; vertical-align: middle; min-width: 100px;">
+                  <div style="padding: 5px 8px; border-radius: 6px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; text-align: center; white-space: nowrap;
+                    ${r.status === 'present' ? 'background: #dcfce7; color: #166534; border: 1px solid #bbf7d0;' : 
+                      r.status === 'half-day' ? 'background: #fef3c7; color: #92400e; border: 1px solid #fde68a;' : 
+                      'background: #fee2e2; color: #991b1b; border: 1px solid #fecaca;'}">
+                    ${r.status || 'absent'}
+                  </div>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  ` : '<div style="text-align: center; padding: 40px 20px; color: #6b7280; font-size: 15px;"><div style="font-size: 48px; margin-bottom: 12px; opacity: 0.5;">📋</div>No records found for this day</div>';
+
+  Swal.fire({
+    title: `<div style="font-family: 'Syne', sans-serif; font-weight: 800; color: #1f2937; margin-bottom: 10px;">${fmtDate(date.toISOString().split('T')[0])}</div>`,
+    html: `<div>${statsHtml}${tableHtml}</div>`,
+    width: 900,
+    padding: '20px',
+    showConfirmButton: true,
+    confirmButtonText: 'Close',
+    confirmButtonColor: '#1a1612',
+    background: '#faf7f2',
+    color: '#1a1612',
+    customClass: {
+      popup: 'day-details-modal',
+      htmlContainer: 'day-details-content'
+    },
+    didOpen: () => {
+      const style = document.createElement('style');
+      style.textContent = `
+        .day-details-modal {
+          border-radius: 12px !important;
+          box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25) !important;
+        }
+        .day-details-content {
+          overflow: visible !important;
+          padding: 0 !important;
+          margin: 0 !important;
+        }
+        .day-details-modal .swal2-html-container {
+          margin: 0 !important;
+          padding: 0 !important;
+          overflow: visible !important;
+        }
+      `;
+      document.head.appendChild(style);
+    }
+  });
+}
 function showSelfie(name, type, selfie, time, location) {
   if (!selfie) {
     Swal.fire({

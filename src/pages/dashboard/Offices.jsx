@@ -26,7 +26,9 @@ export default function Offices() {
     libraries: ['places'],
   });
 
-  const load = () => api.get('/admin/offices').then(r => setOffices(r.data));
+  const load = () => api.get('/admin/offices').then(r => {
+    setOffices(Array.isArray(r.data) ? r.data : []);
+  }).catch(() => setOffices([]));
   useEffect(() => { load(); }, []);
 
   // Init Places Autocomplete on search input
@@ -127,11 +129,32 @@ export default function Offices() {
   const save = async () => {
     if (!form.name || !form.lat || !form.long) return toast('Name aur location required hai');
     try {
-      if (editId) await api.put(`/admin/offices/${editId}`, form);
-      else await api.post('/admin/offices', form);
+      const payload = {
+        name: form.name,
+        address: form.address,
+        lat: parseFloat(form.lat),
+        long: parseFloat(form.long),
+        radius: parseInt(form.radius)
+      };
+      if (editId) await api.put(`/admin/offices/${editId}`, payload);
+      else await api.post('/admin/offices', payload);
       toast(editId ? 'Office updated ✓' : 'Office created ✓');
       setShowModal(false); setForm(empty); setEditId(null); setMarkerPos(null); load();
-    } catch (e) { toast(e.response?.data?.message || 'Error'); }
+    } catch (e) { 
+      console.error('Office save error:', e.response?.data);
+      toast(e.response?.data?.message || 'Error'); 
+    }
+  };
+
+  const clearAllOffices = async () => {
+    try {
+      const result = await api.delete('/admin/offices/clear-all');
+      toast(`Cleared ${result.data.deletedCount} offices`);
+      load();
+    } catch (e) {
+      console.error('Clear offices error:', e);
+      toast('Error clearing offices');
+    }
   };
 
   const del = async (id) => {
@@ -160,11 +183,14 @@ export default function Offices() {
         <button className="btn btn-primary btn-sm" onClick={() => openModal()} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
           <Plus size={14} />Add Office
         </button>
+        <button className="btn btn-danger btn-sm" onClick={clearAllOffices} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginLeft: 8 }}>
+          Clear All (Debug)
+        </button>
       </div>
 
       {/* Office Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px,1fr))', gap: 14 }}>
-        {offices.map(o => (
+        {Array.isArray(offices) ? offices.map(o => (
           <div key={o._id} style={{ background: 'var(--surface)', border: '1.5px solid var(--border)', borderRadius: 4, padding: 18, transition: 'all 0.15s' }}
             onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--ink)'; e.currentTarget.style.boxShadow = '3px 3px 0 var(--ink)'; e.currentTarget.style.transform = 'translate(-1px,-1px)'; }}
             onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.transform = 'none'; }}>
@@ -184,8 +210,8 @@ export default function Offices() {
               <button className="btn btn-danger btn-sm" onClick={() => del(o._id)} style={{ display: 'flex', alignItems: 'center', gap: 5 }}><Trash2 size={12} />Delete</button>
             </div>
           </div>
-        ))}
-        {offices.length === 0 && <div className="empty-state"><Building2 size={36} style={{ margin: '0 auto 10px', display: 'block', color: 'var(--ink2)' }} /><div>No offices yet — add one</div></div>}
+        )) : null}
+        {Array.isArray(offices) && offices.length === 0 && <div className="empty-state"><Building2 size={36} style={{ margin: '0 auto 10px', display: 'block', color: 'var(--ink2)' }} /><div>No offices yet — add one</div></div>}
       </div>
 
       {/* Modal */}

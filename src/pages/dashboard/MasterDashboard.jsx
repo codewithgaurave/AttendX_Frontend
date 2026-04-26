@@ -5,7 +5,7 @@ import { toast } from '../../components/Toast';
 import Swal from 'sweetalert2';
 import { 
   Users, Crown, Calendar, DollarSign, AlertTriangle, 
-  Plus, Edit2, Trash2, CheckCircle, XCircle, Clock 
+  Plus, Edit2, Trash2, CheckCircle, XCircle, Clock, ArrowLeft, Eye 
 } from 'lucide-react';
 
 export default function MasterDashboard() {
@@ -15,9 +15,13 @@ export default function MasterDashboard() {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [selectedSuperAdmin, setSelectedSuperAdmin] = useState(null);
+  const [superAdminDetails, setSuperAdminDetails] = useState(null);
+  const [renewalRequests, setRenewalRequests] = useState([]);
+  const [view, setView] = useState('dashboard'); // 'dashboard', 'superadmin-details', 'renewals'
 
   useEffect(() => {
     loadDashboard();
+    loadRenewalRequests();
   }, []);
 
   const loadDashboard = async () => {
@@ -29,6 +33,54 @@ export default function MasterDashboard() {
       toast('Error loading dashboard');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadRenewalRequests = async () => {
+    try {
+      const { data } = await api.get('/master/renewal-requests');
+      setRenewalRequests(data);
+    } catch (err) {
+      console.error('Error loading renewal requests:', err);
+    }
+  };
+
+  const loadSuperAdminDetails = async (superAdminId) => {
+    try {
+      setLoading(true);
+      const { data } = await api.get(`/master/superadmin/${superAdminId}/admins`);
+      setSuperAdminDetails(data);
+      setView('superadmin-details');
+    } catch (err) {
+      toast('Error loading super admin details');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const approveRenewal = async (adminId, validityDays = 30) => {
+    try {
+      await api.post(`/master/approve-renewal/${adminId}`, { validityDays });
+      toast('Renewal approved successfully');
+      loadRenewalRequests();
+      if (superAdminDetails) {
+        loadSuperAdminDetails(superAdminDetails.superAdmin._id);
+      }
+    } catch (err) {
+      toast(err.response?.data?.message || 'Error approving renewal');
+    }
+  };
+
+  const rejectRenewal = async (adminId, reason) => {
+    try {
+      await api.post(`/master/reject-renewal/${adminId}`, { reason });
+      toast('Renewal request rejected');
+      loadRenewalRequests();
+      if (superAdminDetails) {
+        loadSuperAdminDetails(superAdminDetails.superAdmin._id);
+      }
+    } catch (err) {
+      toast(err.response?.data?.message || 'Error rejecting renewal');
     }
   };
 
@@ -83,6 +135,17 @@ export default function MasterDashboard() {
     return <div className="empty-state"><Users size={32} /><div>Loading...</div></div>;
   }
 
+  if (view === 'superadmin-details' && superAdminDetails) {
+    return (
+      <SuperAdminDetailsView 
+        superAdminDetails={superAdminDetails}
+        onBack={() => setView('dashboard')}
+        onApproveRenewal={approveRenewal}
+        onRejectRenewal={rejectRenewal}
+      />
+    );
+  }
+
   return (
     <>
       <div style={{ marginBottom: 24 }}>
@@ -113,6 +176,25 @@ export default function MasterDashboard() {
         ))}
       </div>
 
+      {/* Renewal Requests Alert */}
+      {renewalRequests.length > 0 && (
+        <div style={{ 
+          background: 'var(--warning-bg)', 
+          border: '1px solid var(--warning)', 
+          borderRadius: 4, 
+          padding: 12, 
+          marginBottom: 16,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8
+        }}>
+          <AlertTriangle size={16} color="var(--warning)" />
+          <span style={{ fontSize: 13, fontWeight: 600 }}>
+            {renewalRequests.length} renewal request{renewalRequests.length > 1 ? 's' : ''} pending approval
+          </span>
+        </div>
+      )}
+
       {/* Super Admins List */}
       <div className="tbl-wrap">
         <div className="tbl-head-row">
@@ -129,6 +211,7 @@ export default function MasterDashboard() {
               superAdmin={sa} 
               onUpdateSubscription={updateSubscription}
               onDeactivate={deactivateSuperAdmin}
+              onViewDetails={loadSuperAdminDetails}
               getDaysLeft={getDaysLeft}
             />
           ))}
@@ -145,7 +228,7 @@ export default function MasterDashboard() {
   );
 }
 
-function SuperAdminCard({ superAdmin, onUpdateSubscription, onDeactivate, getDaysLeft }) {
+function SuperAdminCard({ superAdmin, onUpdateSubscription, onDeactivate, onViewDetails, getDaysLeft }) {
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
   const daysLeft = getDaysLeft(superAdmin.validUntil);
   const isExpired = superAdmin.isExpired || daysLeft <= 0;
@@ -195,6 +278,13 @@ function SuperAdminCard({ superAdmin, onUpdateSubscription, onDeactivate, getDay
         </div>
 
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button 
+            className="btn btn-sm" 
+            onClick={() => onViewDetails(superAdmin._id)}
+            style={{ display: 'flex', alignItems: 'center', gap: 4 }}
+          >
+            <Eye size={12} />View Admins
+          </button>
           <button 
             className="btn btn-sm" 
             onClick={() => setShowSubscriptionModal(true)}
@@ -354,6 +444,265 @@ function SubscriptionModal({ superAdmin, onClose, onUpdate }) {
           </div>
           
           <button type="submit" className="btn btn-primary btn-full">Update Subscription</button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function SuperAdminDetailsView({ superAdminDetails, onBack, onApproveRenewal, onRejectRenewal }) {
+  const { superAdmin, admins } = superAdminDetails;
+  const [showApprovalModal, setShowApprovalModal] = useState(false);
+  const [selectedAdmin, setSelectedAdmin] = useState(null);
+
+  const handleApproveRenewal = (admin) => {
+    setSelectedAdmin(admin);
+    setShowApprovalModal(true);
+  };
+
+  const handleRejectRenewal = async (adminId, adminName) => {
+    const result = await Swal.fire({
+      title: `Reject renewal for ${adminName}?`,
+      input: 'textarea',
+      inputPlaceholder: 'Enter rejection reason...',
+      showCancelButton: true,
+      confirmButtonColor: '#c84b2f',
+      confirmButtonText: 'Reject Request'
+    });
+
+    if (result.isConfirmed) {
+      onRejectRenewal(adminId, result.value);
+    }
+  };
+
+  return (
+    <>
+      <div style={{ marginBottom: 24 }}>
+        <button 
+          className="btn btn-sm" 
+          onClick={onBack}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 16 }}
+        >
+          <ArrowLeft size={14} />Back to Dashboard
+        </button>
+        
+        <div style={{ fontFamily: 'Syne, sans-serif', fontSize: 22, fontWeight: 800, marginBottom: 4 }}>
+          {superAdmin.name} - Admins
+        </div>
+        <div style={{ fontSize: 13, color: 'var(--ink2)' }}>
+          {superAdmin.company} • {superAdmin.email}
+        </div>
+      </div>
+
+      {/* SuperAdmin Info Card */}
+      <div style={{ 
+        background: 'var(--surface)', 
+        border: '2px solid var(--border)', 
+        borderRadius: 4, 
+        padding: 16,
+        marginBottom: 24
+      }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
+          <div>
+            <div style={{ fontSize: 11, color: 'var(--ink2)', marginBottom: 2 }}>Account Type</div>
+            <span className={`badge ${superAdmin.accountType === 'paid' ? 'b-in' : 'b-out'}`}>
+              {superAdmin.accountType.toUpperCase()}
+            </span>
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: 'var(--ink2)', marginBottom: 2 }}>Valid Until</div>
+            <div style={{ fontWeight: 600, fontSize: 13 }}>
+              {new Date(superAdmin.validUntil).toLocaleDateString()}
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: 'var(--ink2)', marginBottom: 2 }}>Max Admins</div>
+            <div style={{ fontWeight: 600, fontSize: 13 }}>{superAdmin.maxAdmins}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: 'var(--ink2)', marginBottom: 2 }}>Created Admins</div>
+            <div style={{ fontWeight: 600, fontSize: 13 }}>{admins.length}</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Admins List */}
+      <div className="tbl-wrap">
+        <div className="tbl-head-row">
+          <div className="tbl-title">Admins ({admins.length})</div>
+        </div>
+        
+        {admins.length === 0 ? (
+          <div className="empty-state">
+            <Users size={32} />
+            <div>No admins created yet</div>
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
+            {admins.map(admin => (
+              <AdminCard 
+                key={admin._id}
+                admin={admin}
+                onApproveRenewal={handleApproveRenewal}
+                onRejectRenewal={handleRejectRenewal}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+      {showApprovalModal && selectedAdmin && (
+        <RenewalApprovalModal 
+          admin={selectedAdmin}
+          onClose={() => setShowApprovalModal(false)}
+          onApprove={onApproveRenewal}
+        />
+      )}
+    </>
+  );
+}
+
+function AdminCard({ admin, onApproveRenewal, onRejectRenewal }) {
+  const isExpired = admin.isExpired || new Date(admin.validUntil) < new Date();
+  const daysLeft = Math.ceil((new Date(admin.validUntil) - new Date()) / (1000 * 60 * 60 * 24));
+  const hasRenewalRequest = admin.renewalRequested && !admin.renewalApproved;
+
+  return (
+    <div style={{ 
+      background: 'var(--surface)', 
+      border: `2px solid ${hasRenewalRequest ? 'var(--warning)' : isExpired ? 'var(--danger)' : 'var(--border)'}`, 
+      borderRadius: 4, 
+      padding: 16 
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+        <div className="emp-avt" style={{ width: 36, height: 36, fontSize: 12 }}>
+          {admin.name.charAt(0)}
+        </div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontWeight: 700, fontSize: 14 }}>{admin.name}</div>
+          <div style={{ fontSize: 11, color: 'var(--ink2)' }}>{admin.email}</div>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <span className={`badge ${admin.accountType === 'paid' ? 'b-in' : 'b-out'}`} style={{ fontSize: 9 }}>
+            {admin.accountType?.toUpperCase() || 'DEMO'}
+          </span>
+          {hasRenewalRequest && (
+            <span className="badge b-warning" style={{ fontSize: 9 }}>RENEWAL REQ</span>
+          )}
+        </div>
+      </div>
+
+      <div style={{ fontSize: 12, marginBottom: 12 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+          <span>Company:</span>
+          <span style={{ fontWeight: 600 }}>{admin.company || 'N/A'}</span>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+          <span>Valid Until:</span>
+          <span style={{ fontWeight: 600, color: isExpired ? 'var(--danger)' : 'var(--ink)' }}>
+            {new Date(admin.validUntil).toLocaleDateString()}
+          </span>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+          <span>Days Left:</span>
+          <span style={{ fontWeight: 600, color: isExpired ? 'var(--danger)' : daysLeft <= 7 ? 'var(--warning)' : 'var(--success)' }}>
+            {Math.max(0, daysLeft)} days
+          </span>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+          <span>Status:</span>
+          <span style={{ fontWeight: 600, color: admin.canScanAttendance ? 'var(--success)' : 'var(--danger)' }}>
+            {admin.canScanAttendance ? 'Active' : 'Inactive'}
+          </span>
+        </div>
+      </div>
+
+      {hasRenewalRequest && (
+        <>
+          <div style={{ 
+            background: 'var(--warning-bg)', 
+            border: '1px solid var(--warning)', 
+            borderRadius: 3, 
+            padding: 8, 
+            marginBottom: 12,
+            fontSize: 11
+          }}>
+            <div style={{ fontWeight: 600, marginBottom: 4 }}>Renewal Request:</div>
+            <div>{admin.renewalMessage || 'No message provided'}</div>
+            <div style={{ color: 'var(--ink2)', marginTop: 4 }}>
+              Requested: {new Date(admin.renewalRequestDate).toLocaleDateString()}
+            </div>
+          </div>
+          
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button 
+              className="btn btn-success btn-sm" 
+              onClick={() => onApproveRenewal(admin)}
+              style={{ flex: 1, fontSize: 11 }}
+            >
+              <CheckCircle size={12} />Approve
+            </button>
+            <button 
+              className="btn btn-danger btn-sm" 
+              onClick={() => onRejectRenewal(admin._id, admin.name)}
+              style={{ flex: 1, fontSize: 11 }}
+            >
+              <XCircle size={12} />Reject
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function RenewalApprovalModal({ admin, onClose, onApprove }) {
+  const [validityDays, setValidityDays] = useState(30);
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    onApprove(admin._id, validityDays);
+    onClose();
+  };
+
+  return (
+    <div className="modal-overlay active" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="modal" style={{ maxWidth: 400 }}>
+        <div className="modal-title">
+          Approve Renewal - {admin.name}
+          <button className="modal-close" onClick={onClose}>✕</button>
+        </div>
+        
+        <div style={{ marginBottom: 16, padding: 12, background: 'var(--surface2)', borderRadius: 3 }}>
+          <div style={{ fontSize: 12, marginBottom: 4 }}>
+            <strong>Request Message:</strong>
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--ink2)' }}>
+            {admin.renewalMessage || 'No message provided'}
+          </div>
+        </div>
+        
+        <form onSubmit={handleSubmit}>
+          <div className="form-group" style={{ marginBottom: 16 }}>
+            <label>Validity Period (Days)</label>
+            <input 
+              className="form-inp" 
+              type="number" 
+              value={validityDays} 
+              onChange={e => setValidityDays(e.target.value)}
+              min="1"
+              max="365"
+            />
+          </div>
+          
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button type="button" className="btn btn-sm" onClick={onClose} style={{ flex: 1 }}>
+              Cancel
+            </button>
+            <button type="submit" className="btn btn-success btn-sm" style={{ flex: 1 }}>
+              Approve Renewal
+            </button>
+          </div>
         </form>
       </div>
     </div>

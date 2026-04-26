@@ -19,8 +19,12 @@ export default function Employees() {
   const [filterOffice, setFilterOffice] = useState('all');
 
   const load = () => {
-    api.get('/admin/employees').then(r => setEmployees(r.data));
-    api.get('/admin/offices').then(r => setOffices(r.data));
+    api.get('/admin/employees').then(r => {
+      setEmployees(Array.isArray(r.data) ? r.data : []);
+    }).catch(() => setEmployees([]));
+    api.get('/admin/offices').then(r => {
+      setOffices(Array.isArray(r.data) ? r.data : []);
+    }).catch(() => setOffices([]));
   };
   useEffect(() => { load(); }, []);
 
@@ -104,7 +108,7 @@ export default function Employees() {
       <div style={{ marginBottom: 24 }}>
         <div style={{ fontFamily: 'Syne, sans-serif', fontSize: 22, fontWeight: 800, marginBottom: 4 }}>Employees</div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 13, color: 'var(--ink2)' }}>{employees.length} members</span>
+          <span style={{ fontSize: 13, color: 'var(--ink2)' }}>{Array.isArray(employees) ? employees.length : 0} members</span>
           {offices.length > 1 && (
             <select className="form-inp" value={filterOffice} onChange={e => setFilterOffice(e.target.value)} style={{ maxWidth: 180 }}>
               <option value="all">All Offices</option>
@@ -114,17 +118,17 @@ export default function Employees() {
           <button className="btn btn-primary btn-sm" onClick={() => { setForm(emptyForm); setEditId(null); setShowModal(true); }} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginLeft: 'auto' }}>
             <UserPlus size={14} />Add Employee
           </button>
-          {filterOffice !== 'all' && <button className="btn btn-sm" onClick={() => exportEmployees(employees.filter(e => (e.officeId?._id || e.officeId) === filterOffice), offices.find(o => o._id === filterOffice)?.name || 'Employees')} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          {filterOffice !== 'all' && <button className="btn btn-sm" onClick={() => exportEmployees(Array.isArray(employees) ? employees.filter(e => (e.officeId?._id || e.officeId) === filterOffice) : [], offices.find(o => o._id === filterOffice)?.name || 'Employees')} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
             <Download size={14} />Export
           </button>}
-          {filterOffice === 'all' && <button className="btn btn-sm" onClick={() => exportEmployees(employees, 'All-Employees')} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          {filterOffice === 'all' && <button className="btn btn-sm" onClick={() => exportEmployees(Array.isArray(employees) ? employees : [], 'All-Employees')} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
             <Download size={14} />Export All
           </button>}
         </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px,1fr))', gap: 14 }}>
-        {employees.filter(e => filterOffice === 'all' || (e.officeId?._id || e.officeId) === filterOffice).map(e => (
+        {Array.isArray(employees) ? employees.filter(e => filterOffice === 'all' || (e.officeId?._id || e.officeId) === filterOffice).map(e => (
           <div key={e._id} style={{ background: 'var(--surface)', border: '1.5px solid var(--border)', borderRadius: 4, padding: 18, transition: 'all 0.15s' }}
             onMouseEnter={ev => { ev.currentTarget.style.borderColor = 'var(--ink)'; ev.currentTarget.style.boxShadow = '3px 3px 0 var(--ink)'; ev.currentTarget.style.transform = 'translate(-1px,-1px)'; }}
             onMouseLeave={ev => { ev.currentTarget.style.borderColor = 'var(--border)'; ev.currentTarget.style.boxShadow = 'none'; ev.currentTarget.style.transform = 'none'; }}>
@@ -148,8 +152,8 @@ export default function Employees() {
               <button className="btn btn-danger btn-sm" onClick={() => del(e._id, e.name)} style={{ display: 'flex', alignItems: 'center', gap: 5 }}><Trash2 size={12} /></button>
             </div>
           </div>
-        ))}
-        {employees.filter(e => filterOffice === 'all' || (e.officeId?._id || e.officeId) === filterOffice).length === 0 && <div className="empty-state"><Users size={36} style={{ margin: '0 auto 10px', display: 'block', color: 'var(--ink2)' }} /><div>No employees yet</div></div>}
+        )) : null}
+        {Array.isArray(employees) && employees.filter(e => filterOffice === 'all' || (e.officeId?._id || e.officeId) === filterOffice).length === 0 && <div className="empty-state"><Users size={36} style={{ margin: '0 auto 10px', display: 'block', color: 'var(--ink2)' }} /><div>No employees yet</div></div>}
       </div>
 
       {showModal && (

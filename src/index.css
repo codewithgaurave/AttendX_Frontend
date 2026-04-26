@@ -202,3 +202,55 @@ tr:hover td { background: var(--surface2); }
   .mobile-nav { display: none !important; }
   .desktop-nav { display: flex !important; }
 }
+
+/* ── Calendar Styles ── */
+.calendar-day {
+  position: relative;
+  min-height: 80px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  transition: all 0.15s;
+  cursor: pointer;
+}
+
+.calendar-day:hover {
+  background: var(--surface2);
+  border-color: var(--ink);
+}
+
+.calendar-day.other-month {
+  opacity: 0.4;
+  background: var(--surface2);
+}
+
+.calendar-day.today {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.status-indicator {
+  width: 100%;
+  height: 4px;
+  border-radius: 2px;
+  margin: 4px 0;
+}
+
+.status-excellent { background: #22c55e; }
+.status-good { background: #84cc16; }
+.status-average { background: #f59e0b; }
+.status-poor { background: #ef4444; }
+.status-no-data { background: #e5e7eb; }
+
+.spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--border);
+  border-top: 2px solid var(--accent);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}

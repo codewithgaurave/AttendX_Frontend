@@ -61,25 +61,29 @@ export default function Holidays() {
       {/* Add form */}
       <div style={{ background: 'var(--surface)', border: '1.5px solid var(--border)', borderRadius: 4, padding: 20, marginBottom: 28 }}>
         <div style={{ fontFamily: 'Syne, sans-serif', fontSize: 14, fontWeight: 700, marginBottom: 14 }}>Add Holiday</div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 180px 160px auto', gap: 12, alignItems: 'flex-end' }}>
-          <div className="form-group" style={{ marginBottom: 0 }}>
-            <label>Holiday Name *</label>
-            <input className="form-inp" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Diwali" />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 180px', gap: 12 }}>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label>Holiday Name *</label>
+              <input className="form-inp" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Diwali" />
+            </div>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label>Date *</label>
+              <input className="form-inp" type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} />
+            </div>
           </div>
-          <div className="form-group" style={{ marginBottom: 0 }}>
-            <label>Date *</label>
-            <input className="form-inp" type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} />
+          <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+            <div className="form-group" style={{ marginBottom: 0, minWidth: 160 }}>
+              <label>Type</label>
+              <select className="form-inp" value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))}>
+                <option value="public">Public Holiday</option>
+                <option value="optional">Optional Holiday</option>
+              </select>
+            </div>
+            <button className="btn btn-primary" onClick={save} style={{ display: 'flex', alignItems: 'center', gap: 6, height: 42 }}>
+              <Plus size={15} />Add Holiday
+            </button>
           </div>
-          <div className="form-group" style={{ marginBottom: 0 }}>
-            <label>Type</label>
-            <select className="form-inp" value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))}>
-              <option value="public">Public Holiday</option>
-              <option value="optional">Optional Holiday</option>
-            </select>
-          </div>
-          <button className="btn btn-primary" onClick={save} style={{ display: 'flex', alignItems: 'center', gap: 6, height: 42 }}>
-            <Plus size={15} />Add
-          </button>
         </div>
       </div>
 
