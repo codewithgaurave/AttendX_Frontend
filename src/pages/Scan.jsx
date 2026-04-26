@@ -6,8 +6,8 @@ import api from '../utils/api';
 import { avt, fmtTime } from '../utils/api';
 import { toast } from '../components/Toast';
 
-const STEPS = { camera: 1, gps: 2, pick: 3, confirm: 4, done: 5, blocked: 2 };
-const LABELS = { camera: 'Scan QR Code', gps: 'Verifying Location', pick: 'Select Your Name', confirm: 'Confirm Attendance', done: 'Done!', blocked: 'Access Denied' };
+const STEPS = { camera: 1, gps: 2, pick: 3, setpin: 4, auto: 2, done: 5, blocked: 2 };
+const LABELS = { camera: 'Scan QR Code', gps: 'Verifying Location', pick: 'Select Your Name', setpin: 'Set Your PIN', auto: 'Auto Attendance', done: 'Done!', blocked: 'Access Denied' };
 
 export default function Scan() {
   const nav = useNavigate();
@@ -20,6 +20,9 @@ export default function Scan() {
   const [doneData, setDoneData] = useState(null);
   const [blockedInfo, setBlockedInfo] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [newPin, setNewPin] = useState('');
+  const [confirmPin, setConfirmPin] = useState('');
+  const [isFirstTime, setIsFirstTime] = useState(false);
 
   const scannerRef = useRef(null);
   const videoRef = useRef(null);
@@ -41,7 +44,12 @@ export default function Scan() {
       text => {
         try {
           const data = JSON.parse(text);
-          if (data.adminId) { stopCamera(); setAdminId(data.adminId); setStep('gps'); }
+          if (data.adminId) { 
+            stopCamera(); 
+            setAdminId(data.adminId); 
+            localStorage.setItem('current_admin_id', data.adminId);
+            setStep('gps'); 
+          }
           else toast('Invalid QR code');
         } catch { toast('Invalid QR code'); }
       }, () => {}
@@ -65,13 +73,28 @@ export default function Scan() {
     if (!geoResult) return;
     if (geoResult.ok) {
       setTimeout(() => {
-        api.get(`/attendance/employees/${adminId}`).then(r => { setEmployees(r.data); setStep('pick'); });
+        // Check if user has PIN stored locally
+        const storedPin = localStorage.getItem(`attendx_pin_${adminId}`);
+        const storedEmployee = localStorage.getItem(`attendx_employee_${adminId}`);
+        if (storedPin && storedEmployee) {
+          // User has PIN, auto mark attendance
+          const employee = JSON.parse(storedEmployee);
+          setSelEmp(employee);
+          setStep('auto');
+          markSmartAttendance(employee);
+        } else {
+          // First time user, show employee list
+          api.get(`/attendance/employees/${adminId}`).then(r => { 
+            setEmployees(r.data); 
+            setStep('pick'); 
+          });
+        }
       }, 1000);
     } else {
       setBlockedInfo({ error: geoResult.error });
       setStep('blocked');
     }
-  }, [geoResult]);
+  }, [geoResult, adminId]);
 
   const markSmartAttendance = async (employee) => {
     if (!employee || !geoResult) return;
@@ -91,8 +114,48 @@ export default function Scan() {
     } finally { setLoading(false); }
   };
 
+  const handleEmployeeSelect = (employee) => {
+    setSelEmp(employee);
+    setIsFirstTime(true);
+    setStep('setpin');
+  };
+
+  const handleSetPin = () => {
+    if (!newPin || newPin.length !== 4) {
+      toast('PIN must be 4 digits');
+      return;
+    }
+    if (newPin !== confirmPin) {
+      toast('PINs do not match');
+      return;
+    }
+    // Store PIN and employee info locally
+    localStorage.setItem(`attendx_pin_${adminId}`, newPin);
+    localStorage.setItem(`attendx_employee_${adminId}`, JSON.stringify(selEmp));
+    toast('PIN set successfully!');
+    markSmartAttendance(selEmp);
+  };
+
+  const handlePinEntry = async () => {
+    if (!pin || pin.length !== 4) {
+      toast('Enter 4-digit PIN');
+      return;
+    }
+    const storedPin = localStorage.getItem(`attendx_pin_${adminId}`);
+    const storedEmployee = JSON.parse(localStorage.getItem(`attendx_employee_${adminId}`) || '{}');
+    
+    if (pin !== storedPin) {
+      toast('Incorrect PIN');
+      setPin('');
+      return;
+    }
+    
+    setSelEmp(storedEmployee);
+    markSmartAttendance(storedEmployee);
+  };
+
   const goBack = () => {
-    const map = { camera: '/', gps: 'camera', blocked: 'camera', pick: 'gps', confirm: 'pick', done: '/' };
+    const map = { camera: '/', gps: 'camera', blocked: 'camera', pick: 'gps', setpin: 'pick', auto: 'camera', done: '/' };
     const next = map[step];
     if (next === '/') { nav('/'); }
     else { setStep(next); }
@@ -131,8 +194,9 @@ export default function Scan() {
           {step === 'camera'  && <CameraStep />}
           {step === 'gps'     && <GPSStep geoResult={geoResult} />}
           {step === 'blocked' && <BlockedStep info={blockedInfo} onRetry={() => { setGeoResult(null); setStep('gps'); }} onHome={() => nav('/')} />}
-          {step === 'pick'    && <PickStep employees={filtered} search={search} setSearch={setSearch} geoResult={geoResult} onPick={e => { setSelEmp(e); markSmartAttendance(e); }} loading={loading} />}
-          {step === 'confirm' && <ConfirmStep emp={selEmp} geoResult={geoResult} loading={loading} onMark={markSmartAttendance} onBack={() => setStep('pick')} />}
+          {step === 'pick'    && <PickStep employees={filtered} search={search} setSearch={setSearch} geoResult={geoResult} onPick={handleEmployeeSelect} loading={loading} />}
+          {step === 'setpin'  && <SetPinStep employee={selEmp} newPin={newPin} setNewPin={setNewPin} confirmPin={confirmPin} setConfirmPin={setConfirmPin} onSetPin={handleSetPin} loading={loading} />}
+          {step === 'auto'    && <AutoStep employee={selEmp} loading={loading} />}
           {step === 'done'    && <DoneStep doneData={doneData} onHome={() => nav('/')} />}
         </div>
       </div>
@@ -199,11 +263,11 @@ function PickStep({ employees, search, setSearch, geoResult, onPick, loading }) 
     <>
       {geoResult?.ok && (
         <div style={{ fontSize: 12, color: 'var(--success)', background: '#e8f5ee', border: '1px solid #b8dcc8', borderRadius: 4, padding: '8px 12px', marginBottom: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
-          <MapPin size={13} />Location verified — tap your name
+          <MapPin size={13} />Location verified — tap your name to set PIN
         </div>
       )}
-      <div style={{ fontSize: 13, color: 'var(--success)', background: '#e8f5ee', border: '1px solid #b8dcc8', borderRadius: 4, padding: '8px 12px', marginBottom: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
-        <CheckCircle size={13} />QR verified — tap your name to mark attendance
+      <div style={{ fontSize: 13, color: 'var(--accent)', background: 'var(--accent-bg)', border: '1px solid var(--accent)', borderRadius: 4, padding: '8px 12px', marginBottom: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+        <CheckCircle size={13} />First time? Select your name to set 4-digit PIN
       </div>
       <input className="form-inp" placeholder="Search your name..." value={search} onChange={e => setSearch(e.target.value)} style={{ marginBottom: 10 }} disabled={loading} />
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 300, overflowY: 'auto' }}>
@@ -229,6 +293,101 @@ function PickStep({ employees, search, setSearch, geoResult, onPick, loading }) 
         ))}
       </div>
     </>
+  );
+}
+
+function SetPinStep({ employee, newPin, setNewPin, confirmPin, setConfirmPin, onSetPin, loading }) {
+  if (!employee) return null;
+  
+  return (
+    <div style={{ textAlign: 'center', padding: '16px 0' }}>
+      <div className="emp-avt" style={{ width: 64, height: 64, fontSize: 20, fontWeight: 800, margin: '0 auto 16px', borderRadius: 8 }}>
+        {avt(employee.name)}
+      </div>
+      
+      <div style={{ fontFamily: 'Syne, sans-serif', fontSize: 18, fontWeight: 800, marginBottom: 4 }}>
+        Welcome, {employee.name}!
+      </div>
+      <div style={{ fontSize: 13, color: 'var(--ink2)', marginBottom: 20 }}>
+        Set a 4-digit PIN for quick attendance
+      </div>
+      
+      <div style={{ maxWidth: 280, margin: '0 auto' }}>
+        <div className="form-group" style={{ marginBottom: 16 }}>
+          <label style={{ fontSize: 12, fontWeight: 600, marginBottom: 6, display: 'block' }}>Enter 4-digit PIN</label>
+          <input 
+            className="form-inp" 
+            type="password" 
+            maxLength="4" 
+            value={newPin} 
+            onChange={e => setNewPin(e.target.value.replace(/\D/g, ''))}
+            placeholder="••••"
+            style={{ textAlign: 'center', fontSize: 18, letterSpacing: 4 }}
+            disabled={loading}
+          />
+        </div>
+        
+        <div className="form-group" style={{ marginBottom: 20 }}>
+          <label style={{ fontSize: 12, fontWeight: 600, marginBottom: 6, display: 'block' }}>Confirm PIN</label>
+          <input 
+            className="form-inp" 
+            type="password" 
+            maxLength="4" 
+            value={confirmPin} 
+            onChange={e => setConfirmPin(e.target.value.replace(/\D/g, ''))}
+            placeholder="••••"
+            style={{ textAlign: 'center', fontSize: 18, letterSpacing: 4 }}
+            disabled={loading}
+          />
+        </div>
+        
+        <button 
+          className="btn btn-primary btn-full" 
+          onClick={onSetPin}
+          disabled={loading || !newPin || newPin.length !== 4 || !confirmPin}
+          style={{ fontSize: 14, fontWeight: 700 }}
+        >
+          {loading ? 'Setting PIN...' : 'Set PIN & Mark Attendance'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function AutoStep({ employee, loading }) {
+  if (!employee) return null;
+  
+  return (
+    <div style={{ textAlign: 'center', padding: '16px 0' }}>
+      <div className="emp-avt" style={{ width: 64, height: 64, fontSize: 20, fontWeight: 800, margin: '0 auto 16px', borderRadius: 8 }}>
+        {avt(employee.name)}
+      </div>
+      
+      <div style={{ fontFamily: 'Syne, sans-serif', fontSize: 18, fontWeight: 800, marginBottom: 4 }}>
+        Welcome back, {employee.name}!
+      </div>
+      <div style={{ fontSize: 13, color: 'var(--ink2)', marginBottom: 20 }}>
+        {employee.designation} • {employee.employeeCode}
+      </div>
+      
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 20 }}>
+        <div style={{ 
+          width: 20, 
+          height: 20, 
+          border: '2px solid var(--border)', 
+          borderTop: '2px solid var(--accent)', 
+          borderRadius: '50%', 
+          animation: 'spin 1s linear infinite' 
+        }} />
+        <span style={{ fontSize: 14, color: 'var(--accent)', fontWeight: 600 }}>
+          Marking attendance automatically...
+        </span>
+      </div>
+      
+      <div style={{ fontSize: 11, color: 'var(--ink2)' }}>
+        Your attendance is being processed
+      </div>
+    </div>
   );
 }
 
