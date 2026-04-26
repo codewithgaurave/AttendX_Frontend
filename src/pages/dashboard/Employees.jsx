@@ -20,10 +20,12 @@ export default function Employees() {
 
   const load = () => {
     api.get('/admin/employees').then(r => {
-      setEmployees(Array.isArray(r.data) ? r.data : []);
+      const employees = r.data.employees || r.data || [];
+      setEmployees(Array.isArray(employees) ? employees : []);
     }).catch(() => setEmployees([]));
     api.get('/admin/offices').then(r => {
-      setOffices(Array.isArray(r.data) ? r.data : []);
+      const offices = r.data.offices || r.data || [];
+      setOffices(Array.isArray(offices) ? offices : []);
     }).catch(() => setOffices([]));
   };
   useEffect(() => { load(); }, []);
