@@ -18,6 +18,7 @@ export default function MasterDashboard() {
   const [superAdminDetails, setSuperAdminDetails] = useState(null);
   const [renewalRequests, setRenewalRequests] = useState([]);
   const [view, setView] = useState('dashboard'); // 'dashboard', 'superadmin-details', 'renewals'
+  const [accountFilter, setAccountFilter] = useState('all'); // 'all', 'demo', 'paid'
 
   useEffect(() => {
     loadDashboard();
@@ -173,7 +174,7 @@ export default function MasterDashboard() {
       </div>
 
       {/* Stats */}
-      <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(6, 1fr)', marginBottom: 24 }}>
+      <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(8, 1fr)', marginBottom: 24 }}>
         {[
           { label: 'Total Super Admins', val: stats.totalSuperAdmins, cls: 's-total', icon: <Crown size={16} /> },
           { label: 'Active', val: stats.activeSuperAdmins, cls: 's-present', icon: <CheckCircle size={16} /> },
@@ -181,6 +182,8 @@ export default function MasterDashboard() {
           { label: 'Demo Accounts', val: stats.demoAccounts, cls: 's-out', icon: <Clock size={16} /> },
           { label: 'Paid Accounts', val: stats.paidAccounts, cls: 's-present', icon: <DollarSign size={16} /> },
           { label: 'Total Admins', val: stats.totalAdmins, cls: 's-total', icon: <Users size={16} /> },
+          { label: 'Demo Admins', val: stats.demoAdmins, cls: 's-out', icon: <Clock size={16} /> },
+          { label: 'Paid Admins', val: stats.paidAdmins, cls: 's-present', icon: <DollarSign size={16} /> },
         ].map(s => (
           <div key={s.label} className={`stat-box ${s.cls}`}>
             <div className="stat-label" style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
@@ -228,8 +231,35 @@ export default function MasterDashboard() {
           </button>
         </div>
         
+        {/* Filter Buttons */}
+        <div style={{ display: 'flex', gap: 4, marginBottom: 16 }}>
+          <button 
+            className={`btn btn-sm ${accountFilter === 'all' ? 'btn-primary' : ''}`}
+            onClick={() => setAccountFilter('all')}
+            style={{ fontSize: 11 }}
+          >
+            All ({superAdmins.length})
+          </button>
+          <button 
+            className={`btn btn-sm ${accountFilter === 'demo' ? 'btn-primary' : ''}`}
+            onClick={() => setAccountFilter('demo')}
+            style={{ fontSize: 11 }}
+          >
+            Demo ({superAdmins.filter(sa => sa.accountType === 'demo').length})
+          </button>
+          <button 
+            className={`btn btn-sm ${accountFilter === 'paid' ? 'btn-primary' : ''}`}
+            onClick={() => setAccountFilter('paid')}
+            style={{ fontSize: 11 }}
+          >
+            Paid ({superAdmins.filter(sa => sa.accountType === 'paid').length})
+          </button>
+        </div>
+        
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 16 }}>
-          {superAdmins.map(sa => (
+          {superAdmins
+            .filter(sa => accountFilter === 'all' || sa.accountType === accountFilter)
+            .map(sa => (
             <SuperAdminCard 
               key={sa._id} 
               superAdmin={sa} 
@@ -455,6 +485,7 @@ function SuperAdminDetailsView({ superAdminDetails, onBack, onApproveRenewal, on
   const { superAdmin, admins } = superAdminDetails;
   const [showApprovalModal, setShowApprovalModal] = useState(false);
   const [selectedAdmin, setSelectedAdmin] = useState(null);
+  const [adminFilter, setAdminFilter] = useState('all'); // 'all', 'demo', 'paid'
 
   const handleApproveRenewal = (admin) => {
     setSelectedAdmin(admin);
@@ -530,7 +561,32 @@ function SuperAdminDetailsView({ superAdminDetails, onBack, onApproveRenewal, on
       {/* Admins List */}
       <div className="tbl-wrap">
         <div className="tbl-head-row">
-          <div className="tbl-title">Admins ({admins.length})</div>
+          <div className="tbl-title">Admins ({admins.filter(admin => adminFilter === 'all' || (admin.accountType || 'demo') === adminFilter).length})</div>
+        </div>
+        
+        {/* Filter Buttons */}
+        <div style={{ display: 'flex', gap: 4, marginBottom: 16 }}>
+          <button 
+            className={`btn btn-sm ${adminFilter === 'all' ? 'btn-primary' : ''}`}
+            onClick={() => setAdminFilter('all')}
+            style={{ fontSize: 11 }}
+          >
+            All ({admins.length})
+          </button>
+          <button 
+            className={`btn btn-sm ${adminFilter === 'demo' ? 'btn-primary' : ''}`}
+            onClick={() => setAdminFilter('demo')}
+            style={{ fontSize: 11 }}
+          >
+            Demo ({admins.filter(admin => (admin.accountType || 'demo') === 'demo').length})
+          </button>
+          <button 
+            className={`btn btn-sm ${adminFilter === 'paid' ? 'btn-primary' : ''}`}
+            onClick={() => setAdminFilter('paid')}
+            style={{ fontSize: 11 }}
+          >
+            Paid ({admins.filter(admin => admin.accountType === 'paid').length})
+          </button>
         </div>
         
         {admins.length === 0 ? (
@@ -540,7 +596,9 @@ function SuperAdminDetailsView({ superAdminDetails, onBack, onApproveRenewal, on
           </div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
-            {admins.map(admin => (
+            {admins
+              .filter(admin => adminFilter === 'all' || (admin.accountType || 'demo') === adminFilter)
+              .map(admin => (
               <AdminCard 
                 key={admin._id}
                 admin={admin}
@@ -620,6 +678,14 @@ function AdminCard({ admin, onApproveRenewal, onRejectRenewal }) {
             {admin.canScanAttendance ? 'Active' : 'Inactive'}
           </span>
         </div>
+        {admin.accountType === 'demo' && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
+            <span>Demo Used:</span>
+            <span style={{ fontWeight: 600, color: 'var(--warning)' }}>
+              {admin.totalDemoUsed || 0} days
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Previous Rejection Info */}

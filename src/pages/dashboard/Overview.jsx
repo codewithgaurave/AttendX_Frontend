@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../utils/api';
 import { avt, fmtTime, fmtDate, today } from '../../utils/api';
-import { Users, UserCheck, UserX, Clock, TrendingDown, PartyPopper } from 'lucide-react';
+import { Users, UserCheck, UserX, Clock, TrendingDown, PartyPopper, DollarSign } from 'lucide-react';
 
 export default function Overview() {
   const { auth } = useAuth();
@@ -30,10 +30,37 @@ export default function Overview() {
       <>
         <div style={{ fontFamily: 'Syne, sans-serif', fontSize: 22, fontWeight: 800, marginBottom: 4 }}>Good {greet()}, Super Admin</div>
         <div style={{ fontSize: 13, color: 'var(--ink2)', marginBottom: 24 }}>System overview</div>
-        <div className="stats-grid">
-          <div className="stat-box s-total"><div className="stat-label">Total Admins</div><div className="stat-val">{admins?.length || 0}</div></div>
-          <div className="stat-box s-present"><div className="stat-label">Active</div><div className="stat-val">{admins?.filter(a => a.isActive)?.length || 0}</div></div>
-          <div className="stat-box s-absent"><div className="stat-label">Inactive</div><div className="stat-val">{admins?.filter(a => !a.isActive)?.length || 0}</div></div>
+        <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(5, 1fr)' }}>
+          <div className="stat-box s-total">
+            <div className="stat-label" style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+              <Users size={16} />Total Admins
+            </div>
+            <div className="stat-val">{admins?.length || 0}</div>
+          </div>
+          <div className="stat-box s-present">
+            <div className="stat-label" style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+              <UserCheck size={16} />Active
+            </div>
+            <div className="stat-val">{admins?.filter(a => a.isActive)?.length || 0}</div>
+          </div>
+          <div className="stat-box s-absent">
+            <div className="stat-label" style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+              <UserX size={16} />Inactive
+            </div>
+            <div className="stat-val">{admins?.filter(a => !a.isActive)?.length || 0}</div>
+          </div>
+          <div className="stat-box s-out">
+            <div className="stat-label" style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+              <Clock size={16} />Demo Accounts
+            </div>
+            <div className="stat-val">{admins?.filter(a => (a.accountType || 'demo') === 'demo')?.length || 0}</div>
+          </div>
+          <div className="stat-box s-present">
+            <div className="stat-label" style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+              <DollarSign size={16} />Paid Accounts
+            </div>
+            <div className="stat-val">{admins?.filter(a => a.accountType === 'paid')?.length || 0}</div>
+          </div>
         </div>
       </>
     );

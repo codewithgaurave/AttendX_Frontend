@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import { UserPlus, ToggleLeft, ToggleRight, QrCode, Printer, Phone, Mail, Building2, Edit2, Calendar, Users, AlertTriangle } from 'lucide-react';
+import { UserPlus, ToggleLeft, ToggleRight, QrCode, Printer, Phone, Mail, Building2, Edit2, Calendar, Users, AlertTriangle, CheckCircle, Clock, DollarSign, HelpCircle } from 'lucide-react';
 import api from '../../utils/api';
 import { avt } from '../../utils/api';
 import { toast } from '../../components/Toast';
@@ -17,6 +17,7 @@ export default function SuperAdminPanel() {
   const [editAdmin, setEditAdmin] = useState(null);
   const [editForm, setEditForm] = useState({});
   const [rejectionModal, setRejectionModal] = useState(null);
+  const [accountFilter, setAccountFilter] = useState('all'); // 'all', 'demo', 'paid'
 
   const load = async () => {
     try {
@@ -129,23 +130,57 @@ export default function SuperAdminPanel() {
     setRejectionModal(admin);
   };
 
+  const openMasterAdminWhatsApp = () => {
+    // Master Admin WhatsApp number - you can make this configurable
+    const masterAdminNumber = "+919696559848"; // Replace with actual Master Admin number
+    const message = "Hello Master Admin, I need help with my SuperAdmin account.";
+    const whatsappUrl = `https://wa.me/${masterAdminNumber.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(message)}`;
+    window.open(whatsappUrl, '_blank');
+  };
+
   return (
     <>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
         <div>
           <div style={{ fontFamily: 'Syne, sans-serif', fontSize: 22, fontWeight: 800, marginBottom: 4 }}>Admins</div>
           <div style={{ fontSize: 13, color: 'var(--ink2)' }}>
-            {admins.length} admins • {subscription.accountType} account • {subscription.currentAdmins || 0}/{subscription.maxAdmins} used
+            {admins.filter(admin => accountFilter === 'all' || (admin.accountType || 'demo') === accountFilter).length} admins • {subscription.accountType} account • {subscription.currentAdmins || 0}/{subscription.maxAdmins} used
           </div>
         </div>
-        <button 
-          className="btn btn-primary" 
-          onClick={() => { setForm(emptyForm); setShowModal(true); }} 
-          style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-          disabled={subscription.isExpired}
-        >
-          <UserPlus size={15} /> Create Admin
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button 
+            className="btn btn-sm" 
+            onClick={openMasterAdminWhatsApp}
+            style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+          >
+            <HelpCircle size={14} />Help & Contact
+          </button>
+          <button 
+            className="btn btn-primary" 
+            onClick={() => { setForm(emptyForm); setShowModal(true); }} 
+            style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+            disabled={subscription.isExpired}
+          >
+            <UserPlus size={15} /> Create Admin
+          </button>
+        </div>
+      </div>
+
+      {/* Stats */}
+      <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)', marginBottom: 24 }}>
+        {[
+          { label: 'Total Admins', val: admins.length, cls: 's-total', icon: <Users size={16} /> },
+          { label: 'Active Admins', val: admins.filter(a => a.isActive).length, cls: 's-present', icon: <CheckCircle size={16} /> },
+          { label: 'Demo Accounts', val: admins.filter(a => (a.accountType || 'demo') === 'demo').length, cls: 's-out', icon: <Clock size={16} /> },
+          { label: 'Paid Accounts', val: admins.filter(a => a.accountType === 'paid').length, cls: 's-present', icon: <DollarSign size={16} /> },
+        ].map(s => (
+          <div key={s.label} className={`stat-box ${s.cls}`}>
+            <div className="stat-label" style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+              {s.icon}{s.label}
+            </div>
+            <div className="stat-val">{s.val || 0}</div>
+          </div>
+        ))}
       </div>
 
       {/* Subscription Warning */}
@@ -156,8 +191,35 @@ export default function SuperAdminPanel() {
         </div>
       )}
 
+      {/* Filter Buttons */}
+      <div style={{ display: 'flex', gap: 4, marginBottom: 16 }}>
+        <button 
+          className={`btn btn-sm ${accountFilter === 'all' ? 'btn-primary' : ''}`}
+          onClick={() => setAccountFilter('all')}
+          style={{ fontSize: 11 }}
+        >
+          All ({admins.length})
+        </button>
+        <button 
+          className={`btn btn-sm ${accountFilter === 'demo' ? 'btn-primary' : ''}`}
+          onClick={() => setAccountFilter('demo')}
+          style={{ fontSize: 11 }}
+        >
+          Demo ({admins.filter(admin => (admin.accountType || 'demo') === 'demo').length})
+        </button>
+        <button 
+          className={`btn btn-sm ${accountFilter === 'paid' ? 'btn-primary' : ''}`}
+          onClick={() => setAccountFilter('paid')}
+          style={{ fontSize: 11 }}
+        >
+          Paid ({admins.filter(admin => admin.accountType === 'paid').length})
+        </button>
+      </div>
+
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px,1fr))', gap: 14 }}>
-        {admins.map(a => (
+        {admins
+          .filter(admin => accountFilter === 'all' || (admin.accountType || 'demo') === accountFilter)
+          .map(a => (
           <AdminCard 
             key={a._id} 
             admin={a} 
@@ -169,7 +231,7 @@ export default function SuperAdminPanel() {
             getDaysLeft={getDaysLeft}
           />
         ))}
-        {admins.length === 0 && <div className="empty-state"><div className="empty-icon">👤</div>No admins yet</div>}
+        {admins.filter(admin => accountFilter === 'all' || (admin.accountType || 'demo') === accountFilter).length === 0 && <div className="empty-state"><div className="empty-icon">👤</div>No {accountFilter === 'all' ? '' : accountFilter + ' '}admins yet</div>}
       </div>
 
       {/* Create Admin Modal */}
@@ -261,12 +323,20 @@ function AdminCard({ admin, onToggle, onShowQR, onEdit, onRequestPaid, onShowRej
             {new Date(admin.validUntil).toLocaleDateString()}
           </span>
         </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
           <span>Days Left:</span>
           <span style={{ fontWeight: 600, color: isExpired ? 'var(--danger)' : daysLeft <= 7 ? 'var(--warning)' : 'var(--success)' }}>
             {daysLeft} days
           </span>
         </div>
+        {admin.accountType === 'demo' && (
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <span>Demo Used:</span>
+            <span style={{ fontWeight: 600, color: 'var(--warning)' }}>
+              {admin.totalDemoUsed || 0} days
+            </span>
+          </div>
+        )}
       </div>
       
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>

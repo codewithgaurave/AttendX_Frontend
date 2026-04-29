@@ -3,11 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, QrCode, ClipboardList, UserCircle,
   MapPin, Users, BarChart2, UserCog, LogOut,
-  CalendarDays, IndianRupee, Building2, ChevronRight, Key
+  CalendarDays, IndianRupee, Building2, ChevronRight, Key, HelpCircle
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
+import { useEffect } from 'react';
 import Overview from './dashboard/Overview';
 import QRPanel from './dashboard/QRPanel';
 import Employees from './dashboard/Employees';
@@ -141,6 +142,32 @@ function ProfilePanel({ isSA, isMA, onNavigate, onLogout, auth }) {
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [passwordForm, setPasswordForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
   const [loading, setLoading] = useState(false);
+  const [superAdminInfo, setSuperAdminInfo] = useState(null);
+
+  // Get SuperAdmin contact info for regular admins
+  useEffect(() => {
+    if (!isSA && !isMA) {
+      api.get('/admin/superadmin-contact').then(res => {
+        setSuperAdminInfo(res.data);
+      }).catch(() => {});
+    }
+  }, [isSA, isMA]);
+
+  const openSuperAdminWhatsApp = () => {
+    if (superAdminInfo?.phone) {
+      const message = `Hello ${superAdminInfo.name}, I need help with my admin account.`;
+      const whatsappUrl = `https://wa.me/${superAdminInfo.phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(message)}`;
+      window.open(whatsappUrl, '_blank');
+    }
+  };
+
+  const openMasterAdminWhatsApp = () => {
+    // Master Admin WhatsApp number
+    const masterAdminNumber = "+919696559848"; // Replace with actual Master Admin number
+    const message = "Hello Master Admin, I need help with my SuperAdmin account.";
+    const whatsappUrl = `https://wa.me/${masterAdminNumber.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(message)}`;
+    window.open(whatsappUrl, '_blank');
+  };
 
   const changePassword = async () => {
     if (!passwordForm.currentPassword || !passwordForm.newPassword || !passwordForm.confirmPassword) {
@@ -220,6 +247,61 @@ function ProfilePanel({ isSA, isMA, onNavigate, onLogout, auth }) {
               <ChevronRight size={16} color="var(--ink2)" />
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Help & Contact for SuperAdmins */}
+      {isSA && (
+        <div style={{ background: 'var(--surface)', border: '1.5px solid var(--border)', borderRadius: 4, overflow: 'hidden', marginBottom: 16 }}>
+          <div onClick={openMasterAdminWhatsApp}
+            style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', cursor: 'pointer', transition: 'background 0.15s' }}
+            onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+            <div style={{ width: 38, height: 38, borderRadius: 4, background: 'var(--surface2)', border: '1.5px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--ink2)', flexShrink: 0 }}>
+              <HelpCircle size={18} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 600, fontSize: 14 }}>Help & Contact</div>
+              <div style={{ fontSize: 12, color: 'var(--ink2)', marginTop: 2 }}>Contact Master Admin on WhatsApp</div>
+            </div>
+            <ChevronRight size={16} color="var(--ink2)" />
+          </div>
+        </div>
+      )}
+
+      {/* Help & Contact for Master Admins */}
+      {isMA && (
+        <div style={{ background: 'var(--surface)', border: '1.5px solid var(--border)', borderRadius: 4, overflow: 'hidden', marginBottom: 16 }}>
+          <div 
+            style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', cursor: 'default', opacity: 0.7 }}
+          >
+            <div style={{ width: 38, height: 38, borderRadius: 4, background: 'var(--surface2)', border: '1.5px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--ink2)', flexShrink: 0 }}>
+              <HelpCircle size={18} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 600, fontSize: 14 }}>Help & Contact</div>
+              <div style={{ fontSize: 12, color: 'var(--ink2)', marginTop: 2 }}>You are the Master Admin - Top level access</div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Help & Contact for Admins */}
+      {!isSA && !isMA && superAdminInfo && (
+        <div style={{ background: 'var(--surface)', border: '1.5px solid var(--border)', borderRadius: 4, overflow: 'hidden', marginBottom: 16 }}>
+          <div onClick={openSuperAdminWhatsApp}
+            style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', cursor: 'pointer', transition: 'background 0.15s' }}
+            onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+            <div style={{ width: 38, height: 38, borderRadius: 4, background: 'var(--surface2)', border: '1.5px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--ink2)', flexShrink: 0 }}>
+              <HelpCircle size={18} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 600, fontSize: 14 }}>Help & Contact</div>
+              <div style={{ fontSize: 12, color: 'var(--ink2)', marginTop: 2 }}>Contact {superAdminInfo.name} on WhatsApp</div>
+            </div>
+            <ChevronRight size={16} color="var(--ink2)" />
+          </div>
         </div>
       )}
 
