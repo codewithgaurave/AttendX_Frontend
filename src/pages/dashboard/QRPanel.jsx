@@ -35,39 +35,44 @@ export default function QRPanel() {
             align-items: center !important;
             justify-content: center !important;
             background: #f5f0e8 !important;
+            padding: 40px !important;
+          }
+          .qr-print-container {
+            width: 100% !important;
+            height: 100% !important;
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: center !important;
+            justify-content: center !important;
+            text-align: center !important;
           }
         }
       `}</style>
 
       {/* ── Hidden print area ── */}
       <div id="qr-print-area" style={{ display: 'none' }}>
-        <div style={{
-          background: '#1a1612',
-          borderRadius: 8,
-          padding: '40px 48px',
-          textAlign: 'center',
-          boxShadow: '8px 8px 0 rgba(0,0,0,0.3)',
-          minWidth: 320,
-        }}>
-          {/* AttendX Logo */}
-          <div style={{ fontFamily: 'Syne, sans-serif', fontSize: 36, fontWeight: 800, color: '#f5f0e8', letterSpacing: -1, marginBottom: 4 }}>
-            Attend<span style={{ color: '#c84b2f' }}>X</span>
-          </div>
-          <div style={{ fontSize: 11, color: '#888', textTransform: 'uppercase', letterSpacing: 3, fontFamily: 'monospace', marginBottom: 28 }}>
-            QR Attendance System
+        <div className="qr-print-container">
+          {/* Header */}
+          <div style={{ marginBottom: 60 }}>
+            <div style={{ fontFamily: 'Syne, sans-serif', fontSize: 72, fontWeight: 800, color: '#1a1612', letterSpacing: -2, marginBottom: 8 }}>
+              Attend<span style={{ color: '#c84b2f' }}>X</span>
+            </div>
+            <div style={{ fontSize: 24, color: '#666', textTransform: 'uppercase', letterSpacing: 6, fontFamily: 'monospace', marginBottom: 12 }}>
+              QR Attendance System
+            </div>
+            <div style={{ fontSize: 18, color: '#888', fontFamily: 'DM Sans, sans-serif' }}>
+              {admin?.companyName || 'COMPANY NAME'}
+            </div>
           </div>
 
-          {/* QR Code */}
-          <div style={{ background: '#ffffff', padding: 16, borderRadius: 6, display: 'inline-block', marginBottom: 20 }}>
-            <QRCodeSVG value={qrValue} size={200} fgColor="#1a1612" bgColor="#ffffff" level="H" />
+          {/* QR Code - Large */}
+          <div style={{ background: '#ffffff', padding: 40, borderRadius: 12, display: 'inline-block', marginBottom: 60, boxShadow: '0 8px 32px rgba(0,0,0,0.1)' }}>
+            <QRCodeSVG value={qrValue} size={400} fgColor="#1a1612" bgColor="#ffffff" level="H" />
           </div>
 
-          {/* Company name */}
-          <div style={{ fontFamily: 'monospace', fontSize: 13, color: '#888', textTransform: 'uppercase', letterSpacing: 2 }}>
-            {admin?.companyName || 'COMPANY QR'}
-          </div>
-          <div style={{ fontFamily: 'monospace', fontSize: 11, color: '#555', marginTop: 6 }}>
-            Scan to mark attendance
+          {/* Footer */}
+          <div style={{ marginTop: 60, fontSize: 14, color: '#888', fontFamily: 'monospace' }}>
+            📍 GPS Required | 🔒 Secure Attendance
           </div>
         </div>
       </div>
@@ -88,7 +93,7 @@ export default function QRPanel() {
               QR Attendance System
             </div>
             <div style={{ background: '#fff', padding: 10, borderRadius: 4, display: 'inline-block', marginBottom: 12 }}>
-              <QRCodeSVG value={qrValue} size={140} fgColor="#1a1612" bgColor="#ffffff" level="H" />
+              <QRCodeSVG value={qrValue} size={180} fgColor="#1a1612" bgColor="#ffffff" level="H" />
             </div>
             <div style={{ fontFamily: 'monospace', fontSize: 10, color: '#888', textTransform: 'uppercase', letterSpacing: 1 }}>
               {admin?.companyName || 'COMPANY QR'}

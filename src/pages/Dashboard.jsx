@@ -3,10 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, QrCode, ClipboardList, UserCircle,
   MapPin, Users, BarChart2, UserCog, LogOut,
-  CalendarDays, IndianRupee, Building2, ChevronRight
+  CalendarDays, IndianRupee, Building2, ChevronRight, Key
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { useAuth } from '../context/AuthContext';
+import api from '../utils/api';
 import Overview from './dashboard/Overview';
 import QRPanel from './dashboard/QRPanel';
 import Employees from './dashboard/Employees';
@@ -137,6 +138,38 @@ export default function Dashboard() {
 
 /* ── Profile Panel ── */
 function ProfilePanel({ isSA, isMA, onNavigate, onLogout, auth }) {
+  const [showChangePassword, setShowChangePassword] = useState(false);
+  const [passwordForm, setPasswordForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
+  const [loading, setLoading] = useState(false);
+
+  const changePassword = async () => {
+    if (!passwordForm.currentPassword || !passwordForm.newPassword || !passwordForm.confirmPassword) {
+      return Swal.fire('Error', 'Please fill all fields', 'error');
+    }
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      return Swal.fire('Error', 'New passwords do not match', 'error');
+    }
+    if (passwordForm.newPassword.length < 6) {
+      return Swal.fire('Error', 'Password must be at least 6 characters', 'error');
+    }
+
+    setLoading(true);
+    try {
+      const endpoint = isSA ? '/superadmin/change-password' : isMA ? '/masteradmin/change-password' : '/auth/change-password';
+      await api.patch(endpoint, {
+        currentPassword: passwordForm.currentPassword,
+        newPassword: passwordForm.newPassword
+      });
+      
+      Swal.fire('Success', 'Password changed successfully!', 'success');
+      setShowChangePassword(false);
+      setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+    } catch (error) {
+      Swal.fire('Error', error.response?.data?.message || 'Failed to change password', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
   const menuItems = (isSA || isMA)
     ? []
     : [
@@ -190,6 +223,23 @@ function ProfilePanel({ isSA, isMA, onNavigate, onLogout, auth }) {
         </div>
       )}
 
+      {/* Change Password */}
+      <div style={{ background: 'var(--surface)', border: '1.5px solid var(--border)', borderRadius: 4, overflow: 'hidden', marginBottom: 16 }}>
+        <div onClick={() => setShowChangePassword(true)}
+          style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', cursor: 'pointer', transition: 'background 0.15s' }}
+          onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'}
+          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+          <div style={{ width: 38, height: 38, borderRadius: 4, background: 'var(--surface2)', border: '1.5px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--ink2)', flexShrink: 0 }}>
+            <Key size={18} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 600, fontSize: 14 }}>Change Password</div>
+            <div style={{ fontSize: 12, color: 'var(--ink2)', marginTop: 2 }}>Update your account password</div>
+          </div>
+          <ChevronRight size={16} color="var(--ink2)" />
+        </div>
+      </div>
+
       {/* Logout */}
       <div style={{ background: 'var(--surface)', border: '1.5px solid var(--border)', borderRadius: 4, overflow: 'hidden' }}>
         <div onClick={onLogout}
@@ -206,6 +256,73 @@ function ProfilePanel({ isSA, isMA, onNavigate, onLogout, auth }) {
           <ChevronRight size={16} color="var(--ink2)" />
         </div>
       </div>
+      
+      {/* Change Password Modal */}
+      {showChangePassword && (
+        <div className="modal-overlay active" onClick={e => e.target === e.currentTarget && setShowChangePassword(false)}>
+          <div className="modal" style={{ maxWidth: 400 }}>
+            <div className="modal-title">
+              Change Password
+              <button className="modal-close" onClick={() => setShowChangePassword(false)}>✕</button>
+            </div>
+            
+            <div className="form-group">
+              <label>Current Password</label>
+              <input 
+                className="form-inp" 
+                type="password" 
+                value={passwordForm.currentPassword}
+                onChange={e => setPasswordForm(f => ({ ...f, currentPassword: e.target.value }))}
+                placeholder="Enter current password"
+                disabled={loading}
+              />
+            </div>
+            
+            <div className="form-group">
+              <label>New Password</label>
+              <input 
+                className="form-inp" 
+                type="password" 
+                value={passwordForm.newPassword}
+                onChange={e => setPasswordForm(f => ({ ...f, newPassword: e.target.value }))}
+                placeholder="Enter new password (min 6 characters)"
+                disabled={loading}
+              />
+            </div>
+            
+            <div className="form-group">
+              <label>Confirm New Password</label>
+              <input 
+                className="form-inp" 
+                type="password" 
+                value={passwordForm.confirmPassword}
+                onChange={e => setPasswordForm(f => ({ ...f, confirmPassword: e.target.value }))}
+                placeholder="Confirm new password"
+                disabled={loading}
+              />
+            </div>
+            
+            <div style={{ display: 'flex', gap: 12, marginTop: 20 }}>
+              <button 
+                className="btn" 
+                onClick={() => setShowChangePassword(false)}
+                disabled={loading}
+                style={{ flex: 1 }}
+              >
+                Cancel
+              </button>
+              <button 
+                className="btn btn-primary" 
+                onClick={changePassword}
+                disabled={loading}
+                style={{ flex: 1 }}
+              >
+                {loading ? 'Changing...' : 'Change Password'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

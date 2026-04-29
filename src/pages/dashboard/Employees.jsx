@@ -7,7 +7,7 @@ import Swal from 'sweetalert2';
 import { UserPlus, Pencil, Clock, Trash2, Users, Download } from 'lucide-react';
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-const emptyForm = { name: '', email: '', phone: '', employeeCode: '', designation: '', joiningDate: '', officeId: '', department: '', address: '', emergencyContact: '', bloodGroup: '', gender: '', dob: '', monthlySalary: '', weeklyOff: [0], workingHours: { startTime: '09:00', endTime: '18:00' } };
+const emptyForm = { name: '', email: '', phone: '', employeeCode: '', designation: '', joiningDate: '', officeId: '', department: '', address: '', emergencyContact: '', bloodGroup: '', gender: '', dob: '', monthlySalary: '', weeklyOff: [0], workingHours: { startTime: '09:00', endTime: '18:00' }, selfieRequired: false };
 
 export default function Employees() {
   const [employees, setEmployees] = useState([]);
@@ -21,7 +21,13 @@ export default function Employees() {
   const load = () => {
     api.get('/admin/employees').then(r => {
       const employees = r.data.employees || r.data || [];
-      setEmployees(Array.isArray(employees) ? employees : []);
+      const validEmployees = Array.isArray(employees) ? employees : [];
+      // Sort: active employees first, then inactive at bottom
+      const sortedEmployees = validEmployees.sort((a, b) => {
+        if (a.isActive === b.isActive) return 0;
+        return a.isActive ? -1 : 1;
+      });
+      setEmployees(sortedEmployees);
     }).catch(() => setEmployees([]));
     api.get('/admin/offices').then(r => {
       const offices = r.data.offices || r.data || [];
@@ -33,7 +39,7 @@ export default function Employees() {
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
   const save = async () => {
-    if (!form.name || !form.email || !form.phone || !form.employeeCode || !form.designation || !form.joiningDate || !form.officeId)
+    if (!form.name || !form.phone || !form.employeeCode || !form.designation || !form.joiningDate || !form.officeId)
       return toast('Fill all mandatory fields');
     try {
       if (editId) await api.put(`/admin/employees/${editId}`, form);
@@ -43,10 +49,10 @@ export default function Employees() {
     } catch (e) { toast(e.response?.data?.message || 'Error'); }
   };
 
-  const del = async (id, name) => {
+  const deactivate = async (id, name) => {
     const result = await Swal.fire({
       title: `Deactivate ${name}?`,
-      text: 'This employee will be marked inactive.',
+      text: 'This employee will be deactivated and cannot mark attendance.',
       icon: 'warning',
       showCancelButton: true,
       confirmButtonColor: '#c84b2f',
@@ -57,8 +63,13 @@ export default function Employees() {
       color: '#1a1612',
     });
     if (!result.isConfirmed) return;
-    await api.delete(`/admin/employees/${id}`);
+    await api.patch(`/admin/employees/${id}/deactivate`);
     toast(`${name} deactivated`); load();
+  };
+
+  const activate = async (id, name) => {
+    await api.patch(`/admin/employees/${id}/activate`);
+    toast(`${name} activated`); load();
   };
 
   const saveWH = async () => {
@@ -70,13 +81,17 @@ export default function Employees() {
   };
 
   const openEdit = (e) => {
-    setForm({ name: e.name, email: e.email, phone: e.phone, employeeCode: e.employeeCode, designation: e.designation, joiningDate: e.joiningDate?.slice(0,10) || '', officeId: e.officeId?._id || e.officeId, department: e.department || '', address: e.address || '', emergencyContact: e.emergencyContact || '', bloodGroup: e.bloodGroup || '', gender: e.gender || '', dob: e.dob?.slice(0,10) || '', monthlySalary: e.monthlySalary || '', weeklyOff: e.weeklyOff || [0], workingHours: e.workingHours || { startTime: '09:00', endTime: '18:00' } });
+    setForm({ name: e.name, email: e.email, phone: e.phone, employeeCode: e.employeeCode, designation: e.designation, joiningDate: e.joiningDate?.slice(0,10) || '', officeId: e.officeId?._id || e.officeId, department: e.department || '', address: e.address || '', emergencyContact: e.emergencyContact || '', bloodGroup: e.bloodGroup || '', gender: e.gender || '', dob: e.dob?.slice(0,10) || '', monthlySalary: e.monthlySalary || '', weeklyOff: e.weeklyOff || [0], workingHours: e.workingHours || { startTime: '09:00', endTime: '18:00' }, selfieRequired: e.selfieRequired || false });
     setEditId(e._id); setShowModal(true);
   };
 
   const downloadSlip = async (emp) => {
+    console.log('Download slip clicked for employee:', emp.name);
+    
     const month = new Date().toISOString().slice(0, 7);
-    const { data: m } = await Swal.fire({
+    console.log('Default month:', month);
+    
+    const result = await Swal.fire({
       title: 'Select Month',
       input: 'month',
       inputValue: month,
@@ -85,17 +100,41 @@ export default function Employees() {
       background: '#faf7f2',
       color: '#1a1612',
     });
-    if (!m) return;
-    const token = localStorage.getItem('token');
-    const base = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
-    const url = `${base}/admin/salary/slip/${emp._id}?month=${m}`;
-    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-    if (!res.ok) return toast('Error generating slip');
-    const blob = await res.blob();
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `salary-slip-${emp.employeeCode}-${m}.pdf`;
-    a.click();
+    
+    console.log('Swal result:', result);
+    
+    if (result.isDismissed || !result.value) {
+      console.log('Month selection cancelled or no value');
+      return;
+    }
+    
+    const selectedMonth = result.value;
+    console.log('Selected month:', selectedMonth);
+    
+    try {
+      const token = localStorage.getItem('token');
+      console.log('Token exists:', !!token);
+      
+      const base = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+      const url = `${base.replace('/api', '')}/api/salary-slip/${emp._id}?month=${selectedMonth}&token=${token}`;
+      
+      console.log('Opening URL:', url);
+      
+      // Simple window.open test
+      const newWindow = window.open(url, '_blank');
+      
+      if (!newWindow) {
+        console.error('Popup blocked');
+        toast('Please allow popups for this site');
+      } else {
+        console.log('Window opened successfully');
+        toast('Salary slip opened in new tab');
+      }
+      
+    } catch (error) {
+      console.error('Download error:', error);
+      toast('Failed to open salary slip');
+    }
   };
 
   const toggleWeeklyOff = (day) => {
@@ -131,15 +170,27 @@ export default function Employees() {
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px,1fr))', gap: 14 }}>
         {Array.isArray(employees) ? employees.filter(e => filterOffice === 'all' || (e.officeId?._id || e.officeId) === filterOffice).map(e => (
-          <div key={e._id} style={{ background: 'var(--surface)', border: '1.5px solid var(--border)', borderRadius: 4, padding: 18, transition: 'all 0.15s' }}
-            onMouseEnter={ev => { ev.currentTarget.style.borderColor = 'var(--ink)'; ev.currentTarget.style.boxShadow = '3px 3px 0 var(--ink)'; ev.currentTarget.style.transform = 'translate(-1px,-1px)'; }}
-            onMouseLeave={ev => { ev.currentTarget.style.borderColor = 'var(--border)'; ev.currentTarget.style.boxShadow = 'none'; ev.currentTarget.style.transform = 'none'; }}>
+          <div key={e._id} style={{ 
+            background: 'var(--surface)', 
+            border: '1.5px solid var(--border)', 
+            borderRadius: 4, 
+            padding: 18, 
+            transition: 'all 0.15s',
+            opacity: e.isActive ? 1 : 0.6,
+            filter: e.isActive ? 'none' : 'grayscale(50%)'
+          }}
+            onMouseEnter={ev => { if (e.isActive) { ev.currentTarget.style.borderColor = 'var(--ink)'; ev.currentTarget.style.boxShadow = '3px 3px 0 var(--ink)'; ev.currentTarget.style.transform = 'translate(-1px,-1px)'; } }}
+            onMouseLeave={ev => { if (e.isActive) { ev.currentTarget.style.borderColor = 'var(--border)'; ev.currentTarget.style.boxShadow = 'none'; ev.currentTarget.style.transform = 'none'; } }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
               <div className="emp-avt" style={{ width: 44, height: 44, fontSize: 15, fontWeight: 800 }}>{avt(e.name)}</div>
               <div>
                 <div style={{ fontWeight: 700, fontSize: 14 }}>{e.name}</div>
                 <div style={{ fontSize: 11, color: 'var(--ink2)', marginTop: 2 }}>{e.employeeCode} · {e.designation}</div>
-                <div style={{ marginTop: 5 }}><span className="badge b-in">{e.officeId?.name || 'Office'}</span></div>
+                <div style={{ marginTop: 5 }}>
+                  <span className={`badge ${e.isActive ? 'b-in' : 'b-out'}`}>
+                    {e.isActive ? e.officeId?.name || 'Office' : 'Deactivated'}
+                  </span>
+                </div>
               </div>
             </div>
             <div style={{ fontSize: 11, color: 'var(--ink2)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 5 }}>
@@ -148,10 +199,19 @@ export default function Employees() {
             {e.monthlySalary > 0 && <div style={{ fontSize: 11, color: 'var(--ink2)', marginBottom: 6 }}>💰 ₹{e.monthlySalary?.toLocaleString('en-IN')}/mo</div>}
             <div style={{ fontSize: 11, color: 'var(--ink2)', marginBottom: 12 }}>{e.email}</div>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              <button className="btn btn-sm" onClick={() => openEdit(e)} style={{ display: 'flex', alignItems: 'center', gap: 5 }}><Pencil size={12} />Edit</button>
-              <button className="btn btn-sm" onClick={() => setWhModal({ ...e, workingHours: { ...e.workingHours } })} style={{ display: 'flex', alignItems: 'center', gap: 5 }}><Clock size={12} />Hours</button>
-              <button className="btn btn-sm" onClick={() => downloadSlip(e)} style={{ display: 'flex', alignItems: 'center', gap: 5 }} title="Download Salary Slip">💰 Slip</button>
-              <button className="btn btn-danger btn-sm" onClick={() => del(e._id, e.name)} style={{ display: 'flex', alignItems: 'center', gap: 5 }}><Trash2 size={12} /></button>
+              {e.isActive ? (
+                <>
+                  <button className="btn btn-sm" onClick={() => openEdit(e)} style={{ display: 'flex', alignItems: 'center', gap: 5 }}><Pencil size={12} />Edit</button>
+                  <button className="btn btn-sm" onClick={() => setWhModal({ ...e, workingHours: { ...e.workingHours } })} style={{ display: 'flex', alignItems: 'center', gap: 5 }}><Clock size={12} />Hours</button>
+                  {e.monthlySalary > 0 && <button className="btn btn-sm" onClick={() => downloadSlip(e)} style={{ display: 'flex', alignItems: 'center', gap: 5 }} title="Download Salary Slip">💰 Slip</button>}
+                  <button className="btn btn-warning btn-sm" onClick={() => deactivate(e._id, e.name)} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>⏸️ Deactivate</button>
+                </>
+              ) : (
+                <>
+                  <button className="btn btn-success btn-sm" onClick={() => activate(e._id, e.name)} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>▶️ Activate</button>
+                  <span style={{ fontSize: 11, color: 'var(--ink2)', fontStyle: 'italic' }}>Cannot mark attendance</span>
+                </>
+              )}
             </div>
           </div>
         )) : null}
@@ -169,7 +229,7 @@ export default function Employees() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div className="form-group"><label>Full Name *</label><input className="form-inp" value={form.name} onChange={e => set('name', e.target.value)} placeholder="Rahul Sharma" /></div>
               <div className="form-group"><label>Employee Code *</label><input className="form-inp" value={form.employeeCode} onChange={e => set('employeeCode', e.target.value)} placeholder="EMP-001" /></div>
-              <div className="form-group"><label>Email *</label><input className="form-inp" type="email" value={form.email} onChange={e => set('email', e.target.value)} /></div>
+              <div className="form-group"><label>Email</label><input className="form-inp" type="email" value={form.email} onChange={e => set('email', e.target.value)} /></div>
               <div className="form-group"><label>Phone *</label><input className="form-inp" value={form.phone} onChange={e => set('phone', e.target.value)} /></div>
               <div className="form-group"><label>Designation *</label><input className="form-inp" value={form.designation} onChange={e => set('designation', e.target.value)} /></div>
               <div className="form-group"><label>Joining Date *</label><input className="form-inp" type="date" value={form.joiningDate} onChange={e => set('joiningDate', e.target.value)} /></div>
@@ -209,6 +269,13 @@ export default function Employees() {
               <div className="form-group"><label>Blood Group</label><input className="form-inp" value={form.bloodGroup} onChange={e => set('bloodGroup', e.target.value)} placeholder="A+" /></div>
               <div className="form-group"><label>Emergency Contact</label><input className="form-inp" value={form.emergencyContact} onChange={e => set('emergencyContact', e.target.value)} /></div>
               <div className="form-group"><label>Address</label><input className="form-inp" value={form.address} onChange={e => set('address', e.target.value)} /></div>
+            </div>
+            <div className="form-group" style={{ marginTop: 12 }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                <input type="checkbox" checked={form.selfieRequired} onChange={e => set('selfieRequired', e.target.checked)} style={{ width: 16, height: 16 }} />
+                <span>📸 Selfie Required for Attendance</span>
+              </label>
+              <div style={{ fontSize: 11, color: 'var(--ink2)', marginTop: 4, marginLeft: 24 }}>Employee must take selfie while marking attendance</div>
             </div>
             <button className="btn btn-primary btn-full" onClick={save}>{editId ? 'Update Employee' : 'Add Employee'}</button>
           </div>

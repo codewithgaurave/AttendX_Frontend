@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Mail, Lock, ChevronRight, ArrowLeft, Shield, User } from 'lucide-react';
+import { Phone, Lock, ChevronRight, ArrowLeft, Shield, User } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
 import { toast } from '../components/Toast';
@@ -8,11 +8,11 @@ import { toast } from '../components/Toast';
 export default function Login() {
   const nav = useNavigate();
   const { login } = useAuth();
-  const [form, setForm] = useState({ email: '', password: '', role: 'admin' });
+  const [form, setForm] = useState({ phone: '', password: '', role: 'admin' });
   const [loading, setLoading] = useState(false);
 
   const doLogin = async () => {
-    if (!form.email || !form.password) return toast('Fill all fields');
+    if (!form.phone || !form.password) return toast('Fill all fields');
     setLoading(true);
     try {
       const { data } = await api.post('/auth/login', form);
@@ -47,11 +47,11 @@ export default function Login() {
           </div>
 
           <div className="form-group">
-            <label>Email</label>
+            <label>Mobile Number</label>
             <div style={{ position: 'relative' }}>
-              <Mail size={15} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--ink2)' }} />
-              <input className="form-inp" type="email" placeholder="admin@company.com" style={{ paddingLeft: 36 }}
-                value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} />
+              <Phone size={15} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--ink2)' }} />
+              <input className="form-inp" type="tel" placeholder="9876543210" style={{ paddingLeft: 36 }}
+                value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} />
             </div>
           </div>
           <div className="form-group">

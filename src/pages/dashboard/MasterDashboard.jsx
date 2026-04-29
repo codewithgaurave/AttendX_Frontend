@@ -58,9 +58,13 @@ export default function MasterDashboard() {
     }
   };
 
-  const approveRenewal = async (adminId, validityDays = 30) => {
+  const approveRenewal = async (adminId, validityDays = 30, additionalData = {}) => {
     try {
-      await api.post(`/master/approve-renewal/${adminId}`, { validityDays });
+      const requestData = {
+        validityDays,
+        ...additionalData
+      };
+      await api.post(`/master/approve-renewal/${adminId}`, requestData);
       toast('Renewal approved successfully');
       loadRenewalRequests();
       if (superAdminDetails) {
@@ -146,6 +150,17 @@ export default function MasterDashboard() {
     );
   }
 
+  if (view === 'renewals') {
+    return (
+      <RenewalRequestsView 
+        renewalRequests={renewalRequests}
+        onBack={() => setView('dashboard')}
+        onApproveRenewal={approveRenewal}
+        onRejectRenewal={rejectRenewal}
+      />
+    );
+  }
+
   return (
     <>
       <div style={{ marginBottom: 24 }}>
@@ -186,12 +201,21 @@ export default function MasterDashboard() {
           marginBottom: 16,
           display: 'flex',
           alignItems: 'center',
-          gap: 8
+          justifyContent: 'space-between'
         }}>
-          <AlertTriangle size={16} color="var(--warning)" />
-          <span style={{ fontSize: 13, fontWeight: 600 }}>
-            {renewalRequests.length} renewal request{renewalRequests.length > 1 ? 's' : ''} pending approval
-          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <AlertTriangle size={16} color="var(--warning)" />
+            <span style={{ fontSize: 13, fontWeight: 600 }}>
+              {renewalRequests.length} renewal request{renewalRequests.length > 1 ? 's' : ''} pending approval
+            </span>
+          </div>
+          <button 
+            className="btn btn-warning btn-sm"
+            onClick={() => setView('renewals')}
+            style={{ fontSize: 11 }}
+          >
+            View Requests
+          </button>
         </div>
       )}
 
@@ -543,6 +567,7 @@ function AdminCard({ admin, onApproveRenewal, onRejectRenewal }) {
   const isExpired = admin.isExpired || new Date(admin.validUntil) < new Date();
   const daysLeft = Math.ceil((new Date(admin.validUntil) - new Date()) / (1000 * 60 * 60 * 24));
   const hasRenewalRequest = admin.renewalRequested && !admin.renewalApproved;
+  const wasRejected = admin.renewalRejected;
 
   return (
     <div style={{ 
@@ -565,6 +590,9 @@ function AdminCard({ admin, onApproveRenewal, onRejectRenewal }) {
           </span>
           {hasRenewalRequest && (
             <span className="badge b-warning" style={{ fontSize: 9 }}>RENEWAL REQ</span>
+          )}
+          {wasRejected && !hasRenewalRequest && (
+            <span className="badge b-danger" style={{ fontSize: 9 }}>REJECTED</span>
           )}
         </div>
       </div>
@@ -593,6 +621,26 @@ function AdminCard({ admin, onApproveRenewal, onRejectRenewal }) {
           </span>
         </div>
       </div>
+
+      {/* Previous Rejection Info */}
+      {wasRejected && !hasRenewalRequest && (
+        <div style={{ 
+          background: 'var(--danger-bg)', 
+          border: '1px solid var(--danger)', 
+          borderRadius: 3, 
+          padding: 8, 
+          marginBottom: 12,
+          fontSize: 11
+        }}>
+          <div style={{ fontWeight: 600, marginBottom: 4, color: 'var(--danger)' }}>Previously Rejected:</div>
+          <div style={{ marginBottom: 2 }}>
+            <strong>Reason:</strong> {admin.renewalRejectionReason || 'No reason provided'}
+          </div>
+          <div style={{ color: 'var(--ink2)' }}>
+            <strong>Rejected:</strong> {new Date(admin.renewalRejectedDate).toLocaleDateString()}
+          </div>
+        </div>
+      )}
 
       {hasRenewalRequest && (
         <>
@@ -633,43 +681,271 @@ function AdminCard({ admin, onApproveRenewal, onRejectRenewal }) {
   );
 }
 
+function RenewalRequestsView({ renewalRequests, onBack, onApproveRenewal, onRejectRenewal }) {
+  const [showApprovalModal, setShowApprovalModal] = useState(false);
+  const [selectedAdmin, setSelectedAdmin] = useState(null);
+
+  const handleApproveRenewal = (admin) => {
+    setSelectedAdmin(admin);
+    setShowApprovalModal(true);
+  };
+
+  const handleRejectRenewal = async (adminId, adminName) => {
+    const result = await Swal.fire({
+      title: `Reject renewal for ${adminName}?`,
+      input: 'textarea',
+      inputPlaceholder: 'Enter rejection reason...',
+      showCancelButton: true,
+      confirmButtonColor: '#c84b2f',
+      confirmButtonText: 'Reject Request'
+    });
+
+    if (result.isConfirmed) {
+      onRejectRenewal(adminId, result.value);
+    }
+  };
+
+  return (
+    <>
+      <div style={{ marginBottom: 24 }}>
+        <button 
+          className="btn btn-sm" 
+          onClick={onBack}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 16 }}
+        >
+          <ArrowLeft size={14} />Back to Dashboard
+        </button>
+        
+        <div style={{ fontFamily: 'Syne, sans-serif', fontSize: 22, fontWeight: 800, marginBottom: 4 }}>
+          Renewal Requests
+        </div>
+        <div style={{ fontSize: 13, color: 'var(--ink2)' }}>
+          {renewalRequests.length} pending request{renewalRequests.length > 1 ? 's' : ''}
+        </div>
+      </div>
+
+      {renewalRequests.length === 0 ? (
+        <div className="empty-state">
+          <CheckCircle size={32} />
+          <div>No pending renewal requests</div>
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: 16 }}>
+          {renewalRequests.map(admin => (
+            <RenewalRequestCard 
+              key={admin._id}
+              admin={admin}
+              onApproveRenewal={handleApproveRenewal}
+              onRejectRenewal={handleRejectRenewal}
+            />
+          ))}
+        </div>
+      )}
+
+      {showApprovalModal && selectedAdmin && (
+        <RenewalApprovalModal 
+          admin={selectedAdmin}
+          onClose={() => setShowApprovalModal(false)}
+          onApprove={onApproveRenewal}
+        />
+      )}
+    </>
+  );
+}
+
+function RenewalRequestCard({ admin, onApproveRenewal, onRejectRenewal }) {
+  const isExpired = admin.isExpired || new Date(admin.validUntil) < new Date();
+  const daysLeft = Math.ceil((new Date(admin.validUntil) - new Date()) / (1000 * 60 * 60 * 24));
+
+  return (
+    <div style={{ 
+      background: 'var(--surface)', 
+      border: '2px solid var(--warning)', 
+      borderRadius: 4, 
+      padding: 16 
+    }}>
+      {/* Admin Info */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+        <div className="emp-avt" style={{ width: 36, height: 36, fontSize: 12 }}>
+          {admin.name.charAt(0)}
+        </div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontWeight: 700, fontSize: 14 }}>{admin.name}</div>
+          <div style={{ fontSize: 11, color: 'var(--ink2)' }}>{admin.companyName}</div>
+        </div>
+        <span className="badge b-warning" style={{ fontSize: 9 }}>PAID REQUEST</span>
+      </div>
+
+      {/* Request Info */}
+      <div style={{ 
+        background: 'var(--warning-bg)', 
+        border: '1px solid var(--warning)', 
+        borderRadius: 3, 
+        padding: 12, 
+        marginBottom: 12,
+        fontSize: 12
+      }}>
+        <div style={{ fontWeight: 600, marginBottom: 6 }}>Request Details:</div>
+        <div style={{ marginBottom: 4 }}>
+          <strong>Requested by:</strong> {admin.renewalRequestedBy?.name || admin.createdBy?.name}
+        </div>
+        <div style={{ marginBottom: 4 }}>
+          <strong>Super Admin:</strong> {admin.createdBy?.name} ({admin.createdBy?.email})
+        </div>
+        <div style={{ marginBottom: 4 }}>
+          <strong>Company:</strong> {admin.createdBy?.company || 'N/A'}
+        </div>
+        <div style={{ color: 'var(--ink2)' }}>
+          <strong>Requested:</strong> {new Date(admin.renewalRequestDate).toLocaleDateString()}
+        </div>
+      </div>
+
+      {/* Current Status */}
+      <div style={{ fontSize: 12, marginBottom: 12 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+          <span>Current Type:</span>
+          <span style={{ fontWeight: 600 }}>{admin.accountType?.toUpperCase() || 'DEMO'}</span>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+          <span>Valid Until:</span>
+          <span style={{ fontWeight: 600, color: isExpired ? 'var(--danger)' : 'var(--ink)' }}>
+            {new Date(admin.validUntil).toLocaleDateString()}
+          </span>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+          <span>Days Left:</span>
+          <span style={{ fontWeight: 600, color: isExpired ? 'var(--danger)' : daysLeft <= 7 ? 'var(--warning)' : 'var(--success)' }}>
+            {Math.max(0, daysLeft)} days
+          </span>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+          <span>Max Employees:</span>
+          <span style={{ fontWeight: 600 }}>{admin.maxEmployees}</span>
+        </div>
+      </div>
+      
+      {/* Action Buttons */}
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button 
+          className="btn btn-success btn-sm" 
+          onClick={() => onApproveRenewal(admin)}
+          style={{ flex: 1, fontSize: 11 }}
+        >
+          <CheckCircle size={12} />Approve & Upgrade
+        </button>
+        <button 
+          className="btn btn-danger btn-sm" 
+          onClick={() => onRejectRenewal(admin._id, admin.name)}
+          style={{ flex: 1, fontSize: 11 }}
+        >
+          <XCircle size={12} />Reject
+        </button>
+      </div>
+    </div>
+  );
+}
 function RenewalApprovalModal({ admin, onClose, onApprove }) {
-  const [validityDays, setValidityDays] = useState(30);
+  const [form, setForm] = useState({
+    validityDays: 30,
+    maxEmployees: Math.max(admin.maxEmployees, 50),
+    maxOffices: Math.max(admin.maxOffices, 5),
+    paymentAmount: '',
+    paymentMethod: 'cash'
+  });
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onApprove(admin._id, validityDays);
+    // Call approve with extended parameters
+    onApprove(admin._id, form.validityDays, form);
     onClose();
   };
 
   return (
     <div className="modal-overlay active" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="modal" style={{ maxWidth: 400 }}>
+      <div className="modal" style={{ maxWidth: 500 }}>
         <div className="modal-title">
-          Approve Renewal - {admin.name}
+          Approve Paid Account - {admin.name}
           <button className="modal-close" onClick={onClose}>✕</button>
         </div>
         
+        {/* Request Info */}
         <div style={{ marginBottom: 16, padding: 12, background: 'var(--surface2)', borderRadius: 3 }}>
-          <div style={{ fontSize: 12, marginBottom: 4 }}>
-            <strong>Request Message:</strong>
+          <div style={{ fontSize: 12, marginBottom: 8 }}>
+            <strong>Request Details:</strong>
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--ink2)', marginBottom: 4 }}>
+            <strong>Requested by:</strong> {admin.renewalRequestedBy?.name || admin.createdBy?.name}
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--ink2)', marginBottom: 4 }}>
+            <strong>Company:</strong> {admin.companyName}
           </div>
           <div style={{ fontSize: 11, color: 'var(--ink2)' }}>
-            {admin.renewalMessage || 'No message provided'}
+            <strong>Message:</strong> {admin.renewalMessage || 'No message provided'}
           </div>
         </div>
         
         <form onSubmit={handleSubmit}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+            <div className="form-group">
+              <label>Validity Period (Days)</label>
+              <input 
+                className="form-inp" 
+                type="number" 
+                value={form.validityDays} 
+                onChange={e => setForm({...form, validityDays: e.target.value})}
+                min="1"
+                max="365"
+              />
+            </div>
+            <div className="form-group">
+              <label>Max Employees</label>
+              <input 
+                className="form-inp" 
+                type="number" 
+                value={form.maxEmployees} 
+                onChange={e => setForm({...form, maxEmployees: e.target.value})}
+                min="1"
+                max="1000"
+              />
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+            <div className="form-group">
+              <label>Max Offices</label>
+              <input 
+                className="form-inp" 
+                type="number" 
+                value={form.maxOffices} 
+                onChange={e => setForm({...form, maxOffices: e.target.value})}
+                min="1"
+                max="100"
+              />
+            </div>
+            <div className="form-group">
+              <label>Payment Amount</label>
+              <input 
+                className="form-inp" 
+                type="number" 
+                value={form.paymentAmount} 
+                onChange={e => setForm({...form, paymentAmount: e.target.value})}
+                placeholder="0"
+              />
+            </div>
+          </div>
+
           <div className="form-group" style={{ marginBottom: 16 }}>
-            <label>Validity Period (Days)</label>
-            <input 
+            <label>Payment Method</label>
+            <select 
               className="form-inp" 
-              type="number" 
-              value={validityDays} 
-              onChange={e => setValidityDays(e.target.value)}
-              min="1"
-              max="365"
-            />
+              value={form.paymentMethod} 
+              onChange={e => setForm({...form, paymentMethod: e.target.value})}
+            >
+              <option value="cash">Cash</option>
+              <option value="online">Online Transfer</option>
+              <option value="cheque">Cheque</option>
+              <option value="upi">UPI</option>
+            </select>
           </div>
           
           <div style={{ display: 'flex', gap: 8 }}>
@@ -677,7 +953,7 @@ function RenewalApprovalModal({ admin, onClose, onApprove }) {
               Cancel
             </button>
             <button type="submit" className="btn btn-success btn-sm" style={{ flex: 1 }}>
-              Approve Renewal
+              Approve & Upgrade to Paid
             </button>
           </div>
         </form>

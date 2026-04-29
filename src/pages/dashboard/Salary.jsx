@@ -13,8 +13,17 @@ export default function Salary() {
 
   useEffect(() => { 
     api.get('/admin/employees').then(r => {
-      setEmployees(Array.isArray(r.data) ? r.data : []);
-    }).catch(() => setEmployees([]));
+      console.log('Salary - Employees API response:', r.data);
+      const employees = r.data.employees || r.data || [];
+      const validEmployees = Array.isArray(employees) ? employees : [];
+      // Only show active employees with salary set
+      const activeEmployeesWithSalary = validEmployees.filter(e => e.isActive !== false && e.monthlySalary > 0);
+      console.log('Salary - Active employees with salary:', activeEmployeesWithSalary.length);
+      setEmployees(activeEmployeesWithSalary);
+    }).catch(err => {
+      console.error('Salary - Error loading employees:', err);
+      setEmployees([]);
+    });
   }, []);
 
   useEffect(() => {

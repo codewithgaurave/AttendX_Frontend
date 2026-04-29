@@ -346,7 +346,10 @@ function DateView({ adminId }) {
 
   useEffect(() => { 
     api.get('/admin/offices').then(r => setOffices(r.data || []));
-    api.get('/admin/employees').then(r => setEmployees(r.data || []));
+    api.get('/admin/employees').then(r => {
+      const employees = r.data.employees || r.data || [];
+      setEmployees(Array.isArray(employees) ? employees : []);
+    }).catch(() => setEmployees([]));
   }, []);
 
   useEffect(() => {
@@ -365,15 +368,25 @@ function DateView({ adminId }) {
     try {
       await api.post('/attendance/mark', { employeeId, date, status });
       toast(`Marked as ${status}`);
+      // Reload the report data
       setLoading(true);
       api.get(`/attendance/report/${adminId}?date=${date}`)
-        .then(r => setReport(r.data)).finally(() => setLoading(false));
-    } catch (e) { toast(e.response?.data?.message || 'Error'); }
+        .then(r => setReport(r.data))
+        .catch(err => {
+          console.error('Error reloading report:', err);
+          toast('Error reloading data');
+        })
+        .finally(() => setLoading(false));
+    } catch (e) { 
+      console.error('Mark attendance error:', e);
+      toast(e.response?.data?.message || 'Error marking attendance'); 
+    }
   };
 
   const markAbsentEmployees = async () => {
     const absentEmpIds = absent.map(a => a.employeeId);
-    const notMarked = (employees || []).filter(e => !present.find(p => p.employeeId === e._id) && !absentEmpIds.includes(e._id));
+    const validEmployees = Array.isArray(employees) ? employees : [];
+    const notMarked = validEmployees.filter(e => !present.find(p => p.employeeId === e._id) && !absentEmpIds.includes(e._id));
     
     if (notMarked.length === 0) {
       toast('All employees already marked');
@@ -445,10 +458,12 @@ function MonthlyView({ adminId }) {
 
   useEffect(() => { 
     api.get('/admin/employees').then(r => {
-      setEmployees(Array.isArray(r.data) ? r.data : []);
+      const employees = r.data.employees || r.data || [];
+      setEmployees(Array.isArray(employees) ? employees : []);
     }).catch(() => setEmployees([]));
     api.get('/admin/offices').then(r => {
-      setOffices(Array.isArray(r.data) ? r.data : []);
+      const offices = r.data.offices || r.data || [];
+      setOffices(Array.isArray(offices) ? offices : []);
     }).catch(() => setOffices([]));
   }, []);
 
@@ -645,10 +660,12 @@ function RangeView({ adminId }) {
 
   useEffect(() => { 
     api.get('/admin/employees').then(r => {
-      setEmployees(Array.isArray(r.data) ? r.data : []);
+      const employees = r.data.employees || r.data || [];
+      setEmployees(Array.isArray(employees) ? employees : []);
     }).catch(() => setEmployees([]));
     api.get('/admin/offices').then(r => {
-      setOffices(Array.isArray(r.data) ? r.data : []);
+      const offices = r.data.offices || r.data || [];
+      setOffices(Array.isArray(offices) ? offices : []);
     }).catch(() => setOffices([]));
   }, []);
 
