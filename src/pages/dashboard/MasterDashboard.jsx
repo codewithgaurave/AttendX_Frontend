@@ -284,6 +284,7 @@ export default function MasterDashboard() {
 
 function SuperAdminCard({ superAdmin, onUpdateSubscription, onDeactivate, onViewDetails, getDaysLeft }) {
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
   const daysLeft = getDaysLeft(superAdmin.validUntil);
   const isExpired = superAdmin.isExpired || daysLeft <= 0;
 
@@ -301,7 +302,8 @@ function SuperAdminCard({ superAdmin, onUpdateSubscription, onDeactivate, onView
           </div>
           <div style={{ flex: 1 }}>
             <div style={{ fontWeight: 700, fontSize: 14 }}>{superAdmin.name}</div>
-            <div style={{ fontSize: 11, color: 'var(--ink2)' }}>{superAdmin.email}</div>
+            <div style={{ fontSize: 11, color: 'var(--ink2)' }}>{superAdmin.phone}</div>
+            <div style={{ fontSize: 11, color: 'var(--ink2)' }}>{superAdmin.email || 'No email'}</div>
           </div>
           <span className={`badge ${superAdmin.accountType === 'paid' ? 'b-in' : 'b-out'}`}>
             {superAdmin.accountType.toUpperCase()}
@@ -347,6 +349,13 @@ function SuperAdminCard({ superAdmin, onUpdateSubscription, onDeactivate, onView
             <Edit2 size={12} />Subscription
           </button>
           <button 
+            className="btn btn-sm" 
+            onClick={() => setShowPasswordModal(true)}
+            style={{ display: 'flex', alignItems: 'center', gap: 4 }}
+          >
+            🔑 Password
+          </button>
+          <button 
             className="btn btn-danger btn-sm" 
             onClick={() => onDeactivate(superAdmin._id, superAdmin.name)}
             style={{ display: 'flex', alignItems: 'center', gap: 4 }}
@@ -363,6 +372,13 @@ function SuperAdminCard({ superAdmin, onUpdateSubscription, onDeactivate, onView
           onUpdate={onUpdateSubscription}
         />
       )}
+      
+      {showPasswordModal && (
+        <ChangePasswordModal 
+          superAdmin={superAdmin}
+          onClose={() => setShowPasswordModal(false)}
+        />
+      )}
     </>
   );
 }
@@ -374,8 +390,8 @@ function CreateSuperAdminModal({ onClose, onCreate }) {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!form.name || !form.email || !form.password) {
-      toast('Please fill required fields');
+    if (!form.name || !form.phone || !form.password) {
+      toast('Please fill required fields (Name, Phone, Password)');
       return;
     }
     onCreate(form);
@@ -396,24 +412,24 @@ function CreateSuperAdminModal({ onClose, onCreate }) {
               <input className="form-inp" value={form.name} onChange={e => setForm({...form, name: e.target.value})} />
             </div>
             <div className="form-group">
-              <label>Email *</label>
-              <input className="form-inp" type="email" value={form.email} onChange={e => setForm({...form, email: e.target.value})} />
+              <label>Phone Number *</label>
+              <input className="form-inp" type="tel" placeholder="9876543210" value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} />
             </div>
           </div>
           
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
             <div className="form-group">
-              <label>Password *</label>
-              <input className="form-inp" type="password" value={form.password} onChange={e => setForm({...form, password: e.target.value})} />
+              <label>Email (Optional)</label>
+              <input className="form-inp" type="email" placeholder="admin@company.com" value={form.email} onChange={e => setForm({...form, email: e.target.value})} />
             </div>
             <div className="form-group">
-              <label>Phone</label>
-              <input className="form-inp" value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} />
+              <label>Password *</label>
+              <input className="form-inp" type="password" value={form.password} onChange={e => setForm({...form, password: e.target.value})} />
             </div>
           </div>
           
           <div className="form-group" style={{ marginBottom: 16 }}>
-            <label>Company</label>
+            <label>Company (Optional)</label>
             <input className="form-inp" value={form.company} onChange={e => setForm({...form, company: e.target.value})} />
           </div>
           
@@ -640,7 +656,8 @@ function AdminCard({ admin, onApproveRenewal, onRejectRenewal }) {
         </div>
         <div style={{ flex: 1 }}>
           <div style={{ fontWeight: 700, fontSize: 14 }}>{admin.name}</div>
-          <div style={{ fontSize: 11, color: 'var(--ink2)' }}>{admin.email}</div>
+          <div style={{ fontSize: 11, color: 'var(--ink2)' }}>{admin.phone}</div>
+          <div style={{ fontSize: 11, color: 'var(--ink2)' }}>{admin.email || 'No email'}</div>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           <span className={`badge ${admin.accountType === 'paid' ? 'b-in' : 'b-out'}`} style={{ fontSize: 9 }}>
@@ -658,7 +675,7 @@ function AdminCard({ admin, onApproveRenewal, onRejectRenewal }) {
       <div style={{ fontSize: 12, marginBottom: 12 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
           <span>Company:</span>
-          <span style={{ fontWeight: 600 }}>{admin.company || 'N/A'}</span>
+          <span style={{ fontWeight: 600 }}>{admin.company || admin.companyName || 'N/A'}</span>
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
           <span>Valid Until:</span>
