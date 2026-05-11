@@ -76,8 +76,8 @@ export default function Scan() {
     if (geoResult.ok) {
       setTimeout(() => {
         // Check if user has PIN stored locally
-        const storedPin = localStorage.getItem(`attendx_pin_${adminId}`);
-        const storedEmployee = localStorage.getItem(`attendx_employee_${adminId}`);
+        const storedPin = localStorage.getItem(`attenzo_pin_${adminId}`);
+        const storedEmployee = localStorage.getItem(`attenzo_employee_${adminId}`);
         if (storedPin && storedEmployee) {
           const employee = JSON.parse(storedEmployee);
           setSelEmp(employee);
@@ -140,8 +140,8 @@ export default function Scan() {
       toast('PINs do not match');
       return;
     }
-    localStorage.setItem(`attendx_pin_${adminId}`, newPin);
-    localStorage.setItem(`attendx_employee_${adminId}`, JSON.stringify(selEmp));
+    localStorage.setItem(`attenzo_pin_${adminId}`, newPin);
+    localStorage.setItem(`attenzo_employee_${adminId}`, JSON.stringify(selEmp));
     toast('PIN set successfully!');
     
     if (selEmp.selfieRequired) {
@@ -156,8 +156,8 @@ export default function Scan() {
       toast('Enter 4-digit PIN');
       return;
     }
-    const storedPin = localStorage.getItem(`attendx_pin_${adminId}`);
-    const storedEmployee = JSON.parse(localStorage.getItem(`attendx_employee_${adminId}`) || '{}');
+    const storedPin = localStorage.getItem(`attenzo_pin_${adminId}`);
+    const storedEmployee = JSON.parse(localStorage.getItem(`attenzo_employee_${adminId}`) || '{}');
     
     if (pin !== storedPin) {
       toast('Incorrect PIN');

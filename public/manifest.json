@@ -1,6 +1,6 @@
 {
-  "name": "AttendX - QR Attendance System",
-  "short_name": "AttendX",
+  "name": "AttenZo - QR Attendance System",
+  "short_name": "AttenZo",
   "description": "Smart QR-based attendance management system with GPS tracking",
   "start_url": "/",
   "display": "standalone",

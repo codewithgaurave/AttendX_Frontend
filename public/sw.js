@@ -1,4 +1,4 @@
-const CACHE_NAME = 'attendx-v1';
+const CACHE_NAME = 'attenzo-v1';
 const urlsToCache = [
   '/',
   '/static/js/bundle.js',
