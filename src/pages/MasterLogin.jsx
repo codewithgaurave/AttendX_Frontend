@@ -34,7 +34,7 @@ export default function MasterLogin() {
             <div style={{ fontFamily: 'Syne, sans-serif', fontSize: 11, color: '#888', textTransform: 'uppercase', letterSpacing: 3 }}>Master Portal</div>
           </div>
           <div style={{ fontFamily: 'Syne, sans-serif', fontSize: 22, fontWeight: 800, color: 'var(--bg)' }}>
-            Attend<span style={{ color: 'var(--accent)' }}>X</span> Master
+            Atten<span style={{ color: 'var(--accent)' }}>Zo</span> Master
           </div>
           <div style={{ fontSize: 12, color: '#666', marginTop: 4 }}>System Administrator Access</div>
         </div>
@@ -44,7 +44,7 @@ export default function MasterLogin() {
             <label>Master Email</label>
             <div style={{ position: 'relative' }}>
               <Mail size={15} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--ink2)' }} />
-              <input className="form-inp" type="email" placeholder="master@attendancex.com" style={{ paddingLeft: 36 }}
+              <input className="form-inp" type="email" placeholder="master@attenzo.com" style={{ paddingLeft: 36 }}
                 value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} />
             </div>
           </div>

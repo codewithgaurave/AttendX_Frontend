@@ -31,7 +31,7 @@ export default function Login() {
         <div style={{ background: 'var(--ink)', padding: '24px 28px', textAlign: 'center' }}>
           <div style={{ fontFamily: 'Syne, sans-serif', fontSize: 11, color: '#666', textTransform: 'uppercase', letterSpacing: 3, marginBottom: 4 }}>Employer Portal</div>
           <div style={{ fontFamily: 'Syne, sans-serif', fontSize: 20, fontWeight: 700, color: 'var(--bg)' }}>
-            Attend<span style={{ color: 'var(--accent)' }}>X</span> Dashboard
+            Atten<span style={{ color: 'var(--accent)' }}>Zo</span> Dashboard
           </div>
         </div>
 
