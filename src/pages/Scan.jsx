@@ -601,19 +601,20 @@ function DoneStep({ doneData, onHome }) {
   const { type, data, emp } = doneData;
   const att = data.attendance;
   const isIn = type === 'in';
+  const isAutoCheckout = data.action === 'auto-checkout';
   const action = data.action || type;
   
   return (
     <div style={{ textAlign: 'center', padding: '16px 0 8px' }}>
-      <div className="pop-in" style={{ width: 80, height: 80, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px', background: isIn ? '#e8f5ee' : '#fdeee8', border: `2px solid ${isIn ? 'var(--success)' : 'var(--danger)'}` }}>
-        {isIn ? <CheckCircle size={36} color="var(--success)" /> : <LogOut size={36} color="var(--danger)" />}
+      <div className="pop-in" style={{ width: 80, height: 80, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px', background: (isIn || isAutoCheckout) ? '#e8f5ee' : '#fdeee8', border: `2px solid ${(isIn || isAutoCheckout) ? 'var(--success)' : 'var(--danger)'}` }}>
+        {(isIn || isAutoCheckout) ? <CheckCircle size={36} color="var(--success)" /> : <LogOut size={36} color="var(--danger)" />}
       </div>
       <div style={{ fontFamily: 'Syne, sans-serif', fontSize: 26, fontWeight: 800, marginBottom: 4 }}>
-        {isIn ? 'Welcome In!' : 'See You Tomorrow!'}
+        {isIn ? 'Welcome In!' : isAutoCheckout ? 'Auto Checkout!' : 'See You Tomorrow!'}
       </div>
       <div style={{ fontSize: 15, color: 'var(--ink2)', marginBottom: 8 }}>{emp.name}</div>
       <div style={{ fontSize: 12, color: 'var(--ink2)', marginBottom: 20, fontFamily: 'DM Mono, monospace' }}>
-        {action === 'punch-in' ? 'Punched In' : 'Punched Out'} • {new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+        {action === 'punch-in' ? 'Punched In' : isAutoCheckout ? 'Auto Checkout' : 'Punched Out'} • {new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
       </div>
       
       <div style={{ display: 'flex', justifyContent: 'center', gap: 24, marginBottom: 16 }}>
